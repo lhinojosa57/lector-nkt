@@ -31,25 +31,23 @@ function getLevel(wpm: number) {
 
 function getProjection(wpm: number) {
   return [
-    { label: 'Hoy',        wpm },
-    { label: 'Semana 4',   wpm: Math.round(wpm * 1.12) },
-    { label: 'Semana 8',   wpm: Math.round(wpm * 1.25) },
-    { label: 'Fin ciclo',  wpm: Math.round(wpm * 1.65) },
+    { label: 'Hoy',       wpm: wpm },
+    { label: 'Semana 4',  wpm: Math.round(wpm * 1.12) },
+    { label: 'Semana 8',  wpm: Math.round(wpm * 1.25) },
+    { label: 'Fin ciclo', wpm: Math.round(wpm * 1.50) },
   ]
 }
-
-export default function DiagnosticResult({ wordsRead, comprehensionScore, answers, audioBlob }: Props) {
+export default function DiagnosticResult({ wordsRead, comprehensionScore, answers, _audioBlob }: Props) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(true)
-  const [savedWpm, setSavedWpm] = useState(wordsRead)
 
   useEffect(() => {
     async function saveResults() {
       if (!profile?.id) return
 
-      // Guardar sesión de diagnóstico
-      const { data: session } = await supabase
+      // Guardar la sesión del diagnóstico
+      await supabase
         .from('reading_sessions')
         .upsert({
           student_id: profile.id,
@@ -63,10 +61,8 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
           is_completed: true,
           completed_at: new Date().toISOString(),
         }, { onConflict: 'student_id,text_id' })
-        .select()
-        .single()
 
-      // Guardar progreso inicial
+      // Guardar el progreso inicial del estudiante
       await supabase
         .from('student_reading_progress')
         .upsert({
@@ -85,21 +81,28 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
           }]),
         }, { onConflict: 'student_id' })
 
-      setSavedWpm(wordsRead)
       setSaving(false)
     }
 
     saveResults()
   }, [])
-
-  const level = getLevel(savedWpm)
-  const projection = getProjection(savedWpm)
+  const level = getLevel(wordsRead)
+  const projection = getProjection(wordsRead)
   const maxWpm = projection[projection.length - 1].wpm
+
+  if (saving) {
+    return (
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="spinner mx-auto mb-4" />
+          <p className="font-body text-ink-600">Guardando resultados...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-sepia-100 flex flex-col">
-
-      {/* Top */}
       <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-4">
         <p className="font-display font-semibold text-ink-800">Diagnóstico completado</p>
         <p className="text-ink-500 text-xs font-body mt-0.5">Tu punto de partida queda registrado</p>
@@ -108,76 +111,76 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="max-w-lg w-full space-y-4">
 
-          {saving ? (
-            <div className="text-center py-12">
-              <div className="spinner mx-auto mb-4" />
-              <p className="font-body text-ink-500">Guardando resultados...</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 text-center">
+              <p className="font-mono text-4xl font-bold text-teal-600">{wordsRead}</p>
+              <p className="font-body text-xs text-ink-500 mt-1">palabras por minuto</p>
             </div>
-          ) : (
-            <>
-              {/* Métricas principales */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 text-center">
-                  <p className="font-mono text-4xl font-bold text-teal-600">{savedWpm}</p>
-                  <p className="font-body text-xs text-ink-500 mt-1">palabras por minuto</p>
-                </div>
-                <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 text-center">
-                  <p className={`font-mono text-4xl font-bold ${comprehensionScore >= 75 ? 'text-teal-600' : comprehensionScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                    {comprehensionScore}%
-                  </p>
-                  <p className="font-body text-xs text-ink-500 mt-1">comprensión lectora</p>
-                </div>
-              </div>
+            <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 text-center">
+              <p className={`font-mono text-4xl font-bold ${
+                comprehensionScore >= 75 ? 'text-teal-600'
+                : comprehensionScore >= 50 ? 'text-amber-500'
+                : 'text-red-500'
+              }`}>
+                {comprehensionScore}%
+              </p>
+              <p className="font-body text-xs text-ink-500 mt-1">comprensión lectora</p>
+            </div>
+          </div>
 
-              {/* Nivel asignado */}
-              <div className={`${level.bg} ${level.border} border rounded-xl p-5`}>
-                <p className="font-body text-xs text-ink-500 mb-1">Tu nivel inicial</p>
-                <p className={`font-display text-2xl font-bold ${level.color}`}>
-                  {level.label}
-                </p>
-                <p className="font-body text-sm text-ink-600 mt-2 leading-relaxed">
-                  {level.key === 'escriba' && 'Como los escribas del antiguo Egipto, dominas los símbolos básicos. Con práctica diaria llegarás más lejos.'}
-                  {level.key === 'cronista' && 'Como los cronistas de la Nueva España, documentas lo que lees con atención. Tu ritmo va creciendo.'}
-                  {level.key === 'pensador' && 'Como los pensadores ilustrados, lees con fluidez e intención. Estás por encima del promedio.'}
-                  {level.key === 'corresponsal' && 'Como un corresponsal de prensa, capturas la información con velocidad y precisión.'}
-                  {level.key === 'humanista' && 'Eres un lector experto. Tu velocidad y comprensión son excepcionales.'}
-                </p>
-              </div>
+          <div className={`${level.bg} ${level.border} border rounded-xl p-5`}>
+            <p className="font-body text-xs text-ink-500 mb-1">Tu nivel inicial</p>
+            <p className={`font-display text-2xl font-bold ${level.color}`}>
+              {level.label}
+            </p>
+            <p className="font-body text-sm text-ink-600 mt-2 leading-relaxed">
+              {level.key === 'escriba' && 'Como los escribas del antiguo Egipto, dominas los símbolos básicos. Con práctica diaria llegarás más lejos.'}
+              {level.key === 'cronista' && 'Como los cronistas de la Nueva España, documentas lo que lees con atención. Tu ritmo va creciendo.'}
+              {level.key === 'pensador' && 'Como los pensadores ilustrados, lees con fluidez e intención. Estás por encima del promedio.'}
+              {level.key === 'corresponsal' && 'Como un corresponsal de prensa, capturas la información con velocidad y precisión.'}
+              {level.key === 'humanista' && 'Eres un lector experto. Tu velocidad y comprensión son excepcionales.'}
+            </p>
+          </div>
 
-              {/* Proyección */}
-              <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
-                <p className="font-body text-xs text-ink-500 mb-4">Tu proyección con práctica diaria de 15 min</p>
-                <div className="space-y-2">
-                  {projection.map((p, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="font-body text-xs text-ink-500 w-16 flex-shrink-0">{p.label}</span>
-                      <div className="flex-1 h-5 bg-parchment-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-5 rounded-full transition-all duration-700 flex items-center justify-end pr-2 ${i === projection.length - 1 ? 'bg-teal-500' : 'bg-teal-200'}`}
-                          style={{ width: `${Math.round((p.wpm / maxWpm) * 100)}%` }}
-                        >
-                          <span className={`font-mono text-xs font-bold ${i === projection.length - 1 ? 'text-white' : 'text-teal-800'}`}>
-                            {p.wpm}
-                          </span>
-                        </div>
-                      </div>
+          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
+            <p className="font-body text-xs text-ink-500 mb-4">
+              Tu proyección con práctica diaria de 15 min
+            </p>
+            <div className="space-y-2">
+              {projection.map((p, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="font-body text-xs text-ink-500 w-16 flex-shrink-0">
+                    {p.label}
+                  </span>
+                  <div className="flex-1 h-5 bg-parchment-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-5 rounded-full flex items-center justify-end pr-2 ${
+                        i === projection.length - 1 ? 'bg-teal-500' : 'bg-teal-200'
+                      }`}
+                      style={{ width: `${Math.round((p.wpm / maxWpm) * 100)}%` }}
+                    >
+                      <span className={`font-mono text-xs font-bold ${
+                        i === projection.length - 1 ? 'text-white' : 'text-teal-800'
+                      }`}>
+                        {p.wpm}
+                      </span>
                     </div>
-                  ))}
+                  </div>
                 </div>
-                <p className="font-body text-xs text-ink-400 mt-3">
-                  Proyección basada en práctica consistente 5 días a la semana
-                </p>
-              </div>
+              ))}
+            </div>
+            <p className="font-body text-xs text-ink-400 mt-3">
+              Proyección basada en práctica consistente 5 días a la semana
+            </p>
+          </div>
 
-              {/* CTA */}
-              <button
-                onClick={() => navigate('/student')}
-                className="w-full bg-teal-600 text-white font-body font-semibold py-4 rounded-xl hover:bg-teal-500 transition-colors text-lg"
-              >
-                Comenzar mi entrenamiento →
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => navigate('/student')}
+            className="w-full bg-teal-600 text-white font-body font-semibold py-4 rounded-xl hover:bg-teal-500 transition-colors text-lg"
+          >
+            Comenzar mi entrenamiento →
+          </button>
+
         </div>
       </div>
     </div>
