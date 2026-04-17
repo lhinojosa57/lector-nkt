@@ -1,0 +1,30 @@
+# Dependencies
+node_modules
+
+# Build
+dist
+.vite
+
+# Environment
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Credentials
+CREDENCIALES_*.txt
