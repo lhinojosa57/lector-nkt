@@ -18,11 +18,11 @@ interface Props {
 }
 
 const LEVELS = [
-  { key: 'escriba',      label: 'El Escriba',      min: 0,   max: 119,  color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200' },
-  { key: 'cronista',     label: 'El Cronista',     min: 120, max: 159,  color: 'text-teal-600',   bg: 'bg-teal-50',   border: 'border-teal-200' },
-  { key: 'pensador',     label: 'El Pensador',     min: 160, max: 199,  color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200' },
-  { key: 'corresponsal', label: 'El Corresponsal', min: 200, max: 259,  color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
-  { key: 'humanista',    label: 'El Humanista',    min: 260, max: 9999, color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200' },
+  { key: 'escriba',      label: 'Escriba',      min: 0,   max: 119,  color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200' },
+  { key: 'cronista',     label: 'Cronista',     min: 120, max: 159,  color: 'text-teal-600',   bg: 'bg-teal-50',   border: 'border-teal-200' },
+  { key: 'pensador',     label: 'Intelectual',     min: 160, max: 199,  color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200' },
+  { key: 'corresponsal', label: 'Corresponsal', min: 200, max: 259,  color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  { key: 'humanista',    label: 'Humanista',    min: 260, max: 9999, color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200' },
 ]
 
 function getLevel(wpm: number) {
@@ -37,7 +37,7 @@ function getProjection(wpm: number) {
     { label: 'Fin ciclo', wpm: Math.round(wpm * 1.50) },
   ]
 }
-export default function DiagnosticResult({ wordsRead, comprehensionScore, answers, _audioBlob }: Props) {
+export default function DiagnosticResult({ wordsRead, comprehensionScore, answers, audioBlob:_audioBlob }: Props) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(true)

@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth'
 import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
+import StudentDashboard from '@/pages/student/StudentDashboard'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -57,12 +58,9 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* Student routes — por construir */}
       <Route path="/student" element={
         <ProtectedRoute role="student">
-          <div className="flex items-center justify-center min-h-screen">
-          <p className="text-ink-600 font-body">Panel estudiante — próximamente</p>
-          </div>
+          <StudentDashboard />
         </ProtectedRoute>
       } />
 
