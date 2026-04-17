@@ -5,6 +5,7 @@ import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
 import StudentDashboard from '@/pages/student/StudentDashboard'
+import SessionPage from '@/pages/session/SessionPage'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -76,6 +77,13 @@ export default function App() {
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <Route path="/student/session" element={
+        <ProtectedRoute role="student">
+          <SessionPage />
+        </ProtectedRoute>
+      } />
+
     </Routes>
   )
 }

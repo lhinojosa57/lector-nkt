@@ -52,6 +52,7 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
         .upsert({
           student_id: profile.id,
           text_id: '98c0dbf4-7911-4025-a3bc-31ba4e83e9c0',
+          is_diagnostic: true,
           session_date: new Date().toISOString().split('T')[0],
           wpm: wordsRead,
           words_read: wordsRead,

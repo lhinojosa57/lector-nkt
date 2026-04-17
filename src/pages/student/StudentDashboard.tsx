@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 interface Progress {
   diagnostic_wpm: number
   diagnostic_comprehension: number
+  diagnostic_date: string
   current_level: string
   current_wpm_avg: number
   best_wpm: number
@@ -68,6 +69,7 @@ export default function StudentDashboard() {
         .eq('student_id', profile.id)
         .eq('session_date', today)
         .eq('is_completed', true)
+        .eq('is_diagnostic', false)
         .single()
 
       setTodayDone(!!todaySession)
@@ -162,9 +164,39 @@ export default function StudentDashboard() {
           </div>
           <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 text-center">
             <p className="font-mono text-2xl font-bold text-blue-600">
-              {progress.total_sessions}
+              {Math.max(0, progress.total_sessions - 1)}
             </p>
             <p className="font-body text-xs text-ink-500 mt-1">sesiones</p>
+          </div>
+        </div>
+
+        {/* Diagnóstico inicial */}
+        <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18M3 6l9-3 9 3-9 3-9-3z" />
+                </svg>
+                <p className="font-body text-xs text-ink-500">Punto de partida</p>
+              </div>
+              <p className="font-display text-base font-bold text-ink-800">
+                Diagnóstico realizado
+              </p>
+              <p className="font-body text-xs text-ink-400 mt-1">
+                {new Date(progress.diagnostic_date + 'T12:00:00').toLocaleDateString('es-MX', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-2xl font-bold text-amber-500">
+                {progress.diagnostic_wpm}
+              </p>
+              <p className="font-body text-xs text-ink-500">wpm inicial</p>
+            </div>
           </div>
         </div>
 
