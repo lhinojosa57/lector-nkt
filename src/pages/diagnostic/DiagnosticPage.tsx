@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
 import DiagnosticIntro from './DiagnosticIntro'
 import DiagnosticReading from './DiagnosticReading'
 import DiagnosticQuestions from './DiagnosticQuestions'
+import DiagnosticResult from './DiagnosticResult'
 
 type DiagnosticStep = 'intro' | 'reading' | 'questions' | 'result'
 
@@ -13,11 +17,40 @@ interface Answer {
 }
 
 export default function DiagnosticPage() {
+  const { profile } = useAuth()
+  const navigate = useNavigate()
   const [step, setStep] = useState<DiagnosticStep>('intro')
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [wordsRead, setWordsRead] = useState(0)
   const [comprehensionScore, setComprehensionScore] = useState(0)
   const [answers, setAnswers] = useState<Answer[]>([])
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    async function checkDiagnostic() {
+      if (!profile?.id) return
+      const { data } = await supabase
+        .from('student_reading_progress')
+        .select('diagnostic_date')
+        .eq('student_id', profile.id)
+        .single()
+
+      if (data?.diagnostic_date) {
+        navigate('/student', { replace: true })
+      } else {
+        setChecking(false)
+      }
+    }
+    checkDiagnostic()
+  }, [profile?.id])
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center">
+        <div className="spinner mx-auto" />
+      </div>
+    )
+  }
 
   const handleReadingComplete = (blob: Blob, words: number) => {
     setAudioBlob(blob)
@@ -43,12 +76,12 @@ export default function DiagnosticPage() {
         <DiagnosticQuestions onComplete={handleQuestionsComplete} />
       )}
       {step === 'result' && (
-        <div className="min-h-screen bg-sepia-100 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-ink-600 font-body text-lg">Comprensión: {comprehensionScore}%</p>
-            <p className="text-ink-400 font-body text-sm mt-2">Resultado completo — próximamente</p>
-          </div>
-        </div>
+        <DiagnosticResult
+          wordsRead={wordsRead}
+          comprehensionScore={comprehensionScore}
+          answers={answers}
+          audioBlob={audioBlob}
+        />
       )}
     </div>
   )
