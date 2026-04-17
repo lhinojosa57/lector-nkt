@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
+import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -19,7 +20,7 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   }
 
   if (!user) return <Navigate to="/login" replace />
-  if (!profile?.role) return <Navigate to="/login" replace />
+  if (!profile?.role) return null
   if (role && profile.role !== role) {
     return <Navigate to={profile.role === 'teacher' ? '/teacher' : '/student'} replace />
   }
@@ -69,6 +70,12 @@ export default function App() {
         user && profile
           ? <Navigate to={profile.role === 'teacher' ? '/teacher' : '/student'} replace />
           : <Navigate to="/login" replace />
+      } />
+      
+      <Route path="/diagnostic" element={
+        <ProtectedRoute>
+          <DiagnosticPage />
+        </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
