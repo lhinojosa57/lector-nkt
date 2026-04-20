@@ -125,7 +125,7 @@ export default function DiagnosticQuestions({ onComplete }: Props) {
 
       {/* Contenido */}
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-2xl w-full">
+        <div className="max-w-2xl w-full" style={{ userSelect: 'none' }}>
           
           {/* Badge de tipo */}
           <div className="mb-4">
