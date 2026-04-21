@@ -5,6 +5,8 @@ import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
 import StudentDashboard from '@/pages/student/StudentDashboard'
+import TeacherDashboard from '@/pages/teacher/TeacherDashboard'
+import TeacherGroupsLector from '@/pages/teacher/TeacherGroupsLector'
 import SessionPage from '@/pages/session/SessionPage'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
@@ -50,12 +52,15 @@ export default function App() {
       } />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* Teacher routes — por construir */}
       <Route path="/teacher" element={
         <ProtectedRoute role="teacher">
-          <div className="flex items-center justify-center min-h-screen">
-            <p className="text-ink-600 font-body">Panel docente — próximamente</p>
-          </div>
+          <TeacherDashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/groups" element={
+        <ProtectedRoute role="teacher">
+          <TeacherGroupsLector />
         </ProtectedRoute>
       } />
 
