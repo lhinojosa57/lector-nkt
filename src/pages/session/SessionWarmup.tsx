@@ -10,7 +10,7 @@ const WARMUPS = [
     columns: [
       ['México', 'historia', 'cultura', 'pueblo', 'tierra'],
       ['nueva españa', 'vida diaria', 'pueblo indígena', 'ciudad real', 'gran mercado'],
-      ['comercio en plaza', 'trabajo de campo', 'lengua y escritura', 'arte colonial', 'mezcla de culturas'],
+      ['comercio en plaza', 'trabajo de campo', 'lengua y escritura', 'arte colonial nuevo', 'mezcla de culturas'],
     ]
   },
   {

@@ -176,7 +176,7 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
           </div>
 
           <button
-            onClick={() => navigate('/student')}
+            onClick={() => navigate(profile?.role === 'teacher' ? '/teacher' : '/student')}
             className="w-full bg-teal-600 text-white font-body font-semibold py-4 rounded-xl hover:bg-teal-500 transition-colors text-lg"
           >
             Comenzar mi entrenamiento →
