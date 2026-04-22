@@ -30,6 +30,8 @@ export default function TeacherGroupsLector() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingGroup, setEditingGroup] = useState<string | null>(null)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [groupMembers, setGroupMembers] = useState<Record<string, {id: string, full_name: string, email: string, diagnostic_wpm: number | null}[]>>({})
 
   const [form, setForm] = useState({
     name: '',
@@ -110,6 +112,38 @@ export default function TeacherGroupsLector() {
     setCopiedCode(code)
     setTimeout(() => setCopiedCode(null), 2000)
   }
+
+  const loadMembers = async (groupId: string) => {
+  if (expandedGroup === groupId) {
+    setExpandedGroup(null)
+    return
+  }
+  setExpandedGroup(groupId)
+  if (groupMembers[groupId]) return
+
+  const { data } = await supabase
+    .from('reading_group_members')
+    .select(`
+      student_id,
+      profiles!reading_group_members_student_id_fkey (
+        id, full_name, email
+      ),
+      student_reading_progress (
+        diagnostic_wpm, current_level
+      )
+    `)
+    .eq('group_id', groupId)
+
+  const members = (data ?? []).map((m: any) => ({
+    id: m.profiles?.id ?? m.student_id,
+    full_name: m.profiles?.full_name ?? m.profiles?.email ?? '—',
+    email: m.profiles?.email ?? '—',
+    diagnostic_wpm: m.student_reading_progress?.[0]?.diagnostic_wpm ?? null,
+    current_level: m.student_reading_progress?.[0]?.current_level ?? null,
+  }))
+
+  setGroupMembers(prev => ({ ...prev, [groupId]: members }))
+}
 
   const filtered = showArchived ? groups.filter(g => g.archived) : groups.filter(g => !g.archived)
 
@@ -213,8 +247,7 @@ export default function TeacherGroupsLector() {
                   <Users className="w-3.5 h-3.5" />
                   <span className="font-body">{group.student_count} estudiante{group.student_count !== 1 ? 's' : ''}</span>
                 </div>
-
-                <div className="bg-sepia-100 rounded-lg px-3 py-2 flex items-center justify-between border border-parchment-200">
+<div className="bg-sepia-100 rounded-lg px-3 py-2 flex items-center justify-between border border-parchment-200">
                   <div>
                     <p className="font-mono text-xs text-ink-400 uppercase">Código de acceso</p>
                     <p className="font-mono font-bold text-ink-800 tracking-widest text-lg">{group.invite_code}</p>
@@ -223,13 +256,52 @@ export default function TeacherGroupsLector() {
                     {copiedCode === group.invite_code ? <Check className="w-4 h-4 text-teal-600" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
+
+                <button
+                  onClick={() => loadMembers(group.id)}
+                  className="w-full mt-3 font-body text-xs text-ink-500 hover:text-teal-600 transition-colors flex items-center justify-center gap-1"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  {expandedGroup === group.id ? 'Ocultar miembros' : `Ver miembros (${group.student_count})`}
+                </button>
+
+                {expandedGroup === group.id && (
+                  <div className="mt-3 border-t border-parchment-200 pt-3 space-y-2">
+                    {!groupMembers[group.id] ? (
+                      <p className="font-body text-xs text-ink-400 text-center py-2">Cargando...</p>
+                    ) : groupMembers[group.id].length === 0 ? (
+                      <p className="font-body text-xs text-ink-400 text-center py-2">Ningún estudiante se ha unido aún</p>
+                    ) : (
+                      groupMembers[group.id].map(m => (
+                        <div key={m.id} className="flex items-center gap-3 py-1.5">
+                          <div className="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
+                            <span className="font-body text-xs font-bold text-teal-700">
+                              {m.full_name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-body text-sm text-ink-800 truncate">{m.full_name}</p>
+                            <p className="font-body text-xs text-ink-400 truncate">{m.email}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            {m.diagnostic_wpm ? (
+                              <p className="font-mono text-sm font-bold text-amber-500">{m.diagnostic_wpm} wpm</p>
+                            ) : (
+                              <p className="font-body text-xs text-ink-400">Sin diagnóstico</p>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div style={{ minHeight: '100vh', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200">
