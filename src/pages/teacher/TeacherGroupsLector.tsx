@@ -113,7 +113,7 @@ export default function TeacherGroupsLector() {
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
-  const loadMembers = async (groupId: string) => {
+ const loadMembers = async (groupId: string) => {
   if (expandedGroup === groupId) {
     setExpandedGroup(null)
     return
@@ -121,28 +121,40 @@ export default function TeacherGroupsLector() {
   setExpandedGroup(groupId)
   if (groupMembers[groupId]) return
 
-  const { data } = await supabase
+  // Query 1: miembros del grupo
+  const { data: members } = await supabase
     .from('reading_group_members')
-    .select(`
-      student_id,
-      profiles!reading_group_members_student_id_fkey (
-        id, full_name, email
-      ),
-      student_reading_progress (
-        diagnostic_wpm, current_level
-      )
-    `)
+    .select('student_id')
     .eq('group_id', groupId)
 
-  const members = (data ?? []).map((m: any) => ({
-    id: m.profiles?.id ?? m.student_id,
-    full_name: m.profiles?.full_name ?? m.profiles?.email ?? '—',
-    email: m.profiles?.email ?? '—',
-    diagnostic_wpm: m.student_reading_progress?.[0]?.diagnostic_wpm ?? null,
-    current_level: m.student_reading_progress?.[0]?.current_level ?? null,
+  if (!members || members.length === 0) {
+    setGroupMembers(prev => ({ ...prev, [groupId]: [] }))
+    return
+  }
+
+  const studentIds = members.map(m => m.student_id)
+
+  // Query 2: perfiles
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', studentIds)
+
+  // Query 3: progreso
+  const { data: progress } = await supabase
+    .from('student_reading_progress')
+    .select('student_id, diagnostic_wpm, current_level')
+    .in('student_id', studentIds)
+
+  const result = (profiles ?? []).map(p => ({
+    id: p.id,
+    full_name: p.full_name ?? p.email,
+    email: p.email,
+    diagnostic_wpm: progress?.find(pr => pr.student_id === p.id)?.diagnostic_wpm ?? null,
+    current_level: progress?.find(pr => pr.student_id === p.id)?.current_level ?? null,
   }))
 
-  setGroupMembers(prev => ({ ...prev, [groupId]: members }))
+  setGroupMembers(prev => ({ ...prev, [groupId]: result }))
 }
 
   const filtered = showArchived ? groups.filter(g => g.archived) : groups.filter(g => !g.archived)
