@@ -19,7 +19,7 @@ interface Group {
 }
 
 const GRADOS = ['Primer grado', 'Segundo grado', 'Tercer grado']
-const MODALIDADES = ['Presencial', 'Virtual', 'Híbrido']
+const MODALIDADES = ['Presencial', 'Virtual', 'Online']
 
 export default function TeacherGroupsLector() {
   const { profile } = useAuth()
@@ -188,7 +188,7 @@ export default function TeacherGroupsLector() {
                       )}
                       <span className={`font-body text-xs px-2 py-0.5 rounded-full font-medium ${
                         group.modalidad === 'Virtual' ? 'bg-blue-100 text-blue-800' :
-                        group.modalidad === 'Híbrido' ? 'bg-purple-100 text-purple-800' :
+                        group.modalidad === 'Online' ? 'bg-purple-100 text-purple-800' :
                         'bg-teal-100 text-teal-800'
                       }`}>
                         {group.modalidad}

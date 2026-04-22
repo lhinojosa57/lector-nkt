@@ -36,6 +36,10 @@ export default function StudentDashboard() {
   const [progress, setProgress] = useState<Progress | null>(null)
   const [todayDone, setTodayDone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -77,6 +81,41 @@ export default function StudentDashboard() {
     }
     load()
   }, [profile?.id])
+
+    const handleJoin = async () => {
+    if (!joinCode.trim() || !profile?.id) return
+    setJoining(true)
+    setJoinError('')
+
+    const { data: group } = await supabase
+      .from('reading_groups')
+      .select('id, name')
+      .eq('invite_code', joinCode.toUpperCase())
+      .eq('archived', false)
+      .single()
+
+    if (!group) {
+      setJoinError('Código no válido. Verifica e intenta de nuevo.')
+      setJoining(false)
+      return
+    }
+
+    const { error } = await supabase
+      .from('reading_group_members')
+      .upsert({ student_id: profile.id, group_id: group.id }, { onConflict: 'student_id,group_id' })
+
+    if (error) {
+      setJoinError('Error al unirse. Intenta de nuevo.')
+      setJoining(false)
+      return
+    }
+
+    setJoining(false)
+    setShowJoinModal(false)
+    setJoinCode('')
+    alert(`¡Te uniste al grupo "${group.name}" correctamente!`)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-sepia-100 flex items-center justify-center">
@@ -103,11 +142,19 @@ export default function StudentDashboard() {
               {LEVEL_LABELS[progress.current_level]}
             </p>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-3xl font-bold text-teal-600">
-              {progress.current_wpm_avg}
-            </p>
-            <p className="font-body text-xs text-ink-500">wpm actual</p>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={() => setShowJoinModal(true)}
+              className="font-body text-xs border border-teal-300 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-50 transition-colors"
+            >
+              + Unirse a grupo
+            </button>
+            <div className="text-right">
+              <p className="font-mono text-3xl font-bold text-teal-600">
+                {progress.current_wpm_avg}
+              </p>
+              <p className="font-body text-xs text-ink-500">wpm actual</p>
+            </div>
           </div>
         </div>
       </div>
@@ -231,6 +278,37 @@ export default function StudentDashboard() {
         )}
 
       </div>
+      {showJoinModal && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50 }}>
+        <div className="bg-parchment-50 rounded-xl w-full max-w-sm border border-parchment-200 p-6">
+          <h2 className="font-display text-lg font-bold text-ink-800 mb-2">Unirse a un grupo</h2>
+          <p className="font-body text-sm text-ink-500 mb-4">Ingresa el código que te dio tu docente</p>
+          <input
+            value={joinCode}
+            onChange={e => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="ej. 18DD4B"
+            maxLength={6}
+            className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-lg text-ink-800 bg-white focus:outline-none focus:border-teal-400 tracking-widest text-center mb-3"
+          />
+          {joinError && <p className="font-body text-xs text-red-500 mb-3">{joinError}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setShowJoinModal(false); setJoinCode(''); setJoinError('') }}
+              className="flex-1 border border-parchment-300 text-ink-700 py-2.5 rounded-lg font-body text-sm hover:bg-sepia-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleJoin}
+              disabled={joinCode.length < 6 || joining}
+              className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-body text-sm font-medium hover:bg-teal-500 disabled:opacity-40 transition-colors"
+            >
+              {joining ? 'Uniéndose...' : 'Unirse'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   )
 }
