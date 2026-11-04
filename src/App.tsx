@@ -11,6 +11,9 @@ import SessionPage from '@/pages/session/SessionPage'
 import Library from '@/pages/teacher/Library'
 import ReadingDetail from '@/pages/teacher/ReadingDetail'
 import Assignments from '@/pages/teacher/Assignments'
+import StudentLibrary from '@/pages/student/StudentLibrary'
+import ReadingSession from '@/pages/student/ReadingSession'
+import ConsentPage from '@/pages/student/ConsentPage'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -88,6 +91,30 @@ export default function App() {
       <Route path="/student" element={
         <ProtectedRoute role="student">
           <StudentDashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/student/library" element={
+        <ProtectedRoute role="student">
+          <StudentLibrary />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/student/read/:assignmentId" element={
+        <ProtectedRoute role="student">
+          <ReadingSession />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/student/practice/:readingId" element={
+        <ProtectedRoute role="student">
+          <ReadingSession />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/student/consent" element={
+        <ProtectedRoute role="student">
+          <ConsentPage />
         </ProtectedRoute>
       } />
 

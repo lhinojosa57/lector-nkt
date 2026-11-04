@@ -142,3 +142,28 @@ export function formatDate(iso: string | null): string {
   const [y, m, d] = iso.slice(0, 10).split('-')
   return `${d}/${m}/${y}`
 }
+
+export const DEFAULT_LEVEL = 2
+
+/** Elige la versión del nivel pedido; si no existe, la más cercana por debajo y si no, la más baja. */
+export function pickVersion<T extends { level: number }>(versions: T[], level: number): T | null {
+  if (versions.length === 0) return null
+  const sorted = [...versions].sort((a, b) => a.level - b.level)
+  return (
+    sorted.find(v => v.level === level) ??
+    [...sorted].reverse().find(v => v.level < level) ??
+    sorted[0]
+  )
+}
+
+export interface LecConsent {
+  student_id: string
+  guardian_name: string
+  relationship: string
+  accepts_google_services: boolean
+  accepts_voice_recording: boolean
+  consent_version: string
+  accepted_at: string
+}
+
+export const CONSENT_VERSION = '2026-27-v1'

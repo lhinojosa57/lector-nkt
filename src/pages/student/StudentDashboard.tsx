@@ -2,87 +2,94 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import {
+  DEFAULT_LEVEL, formatDate, levelName, modeLabel,
+  type Language, type LecAssignment, type LecConsent,
+} from '@/lib/lec'
 
-interface Progress {
-  diagnostic_wpm: number
-  diagnostic_comprehension: number
-  diagnostic_date: string
-  current_level: string
-  current_wpm_avg: number
-  best_wpm: number
-  streak_days: number
-  total_sessions: number
-  wpm_history: { date: string; wpm: number; comprehension: number }[]
+interface AssignmentRow extends LecAssignment {
+  title: string
+  language: Language
+  subject: string
+  completed: boolean
+  comprehension: number | null
 }
 
-const LEVEL_LABELS: Record<string, string> = {
-  escriba: 'Escriba',
-  cronista: 'Cronista',
-  pensador: 'Intelectual',
-  corresponsal: 'Corresponsal',
-  humanista: 'Humanista',
-}
-
-const LEVEL_COLORS: Record<string, string> = {
-  escriba: 'text-amber-600',
-  cronista: 'text-teal-600',
-  pensador: 'text-blue-600',
-  corresponsal: 'text-purple-600',
-  humanista: 'text-rose-600',
-}
 export default function StudentDashboard() {
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
   const navigate = useNavigate()
-  const [progress, setProgress] = useState<Progress | null>(null)
-  const [todayDone, setTodayDone] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [levels, setLevels] = useState<Record<Language, { level: number; provisional: boolean }>>({
+    es: { level: DEFAULT_LEVEL, provisional: true },
+    en: { level: DEFAULT_LEVEL, provisional: true },
+  })
+  const [consent, setConsent] = useState<LecConsent | null>(null)
+  const [reload, setReload] = useState(0)
+
+  const [showJoin, setShowJoin] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
+    if (!profile?.id) return
+    const studentId = profile.id
+    let cancelled = false
+
     async function load() {
-      if (!profile?.id) return
+      const [assignRes, attemptsRes, levelsRes, consentRes] = await Promise.all([
+        supabase
+          .from('lec_assignments')
+          .select('*, lec_readings(title, language, subject)')
+          .eq('archived', false)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('lec_attempts')
+          .select('assignment_id, comprehension_pct, completed_at')
+          .eq('student_id', studentId)
+          .not('assignment_id', 'is', null)
+          .not('completed_at', 'is', null),
+        supabase.from('lec_student_levels').select('language, level, is_provisional').eq('student_id', studentId),
+        supabase.from('lec_consents').select('*').eq('student_id', studentId).maybeSingle(),
+      ])
+      if (cancelled) return
 
-      // Traer progreso del estudiante
-      const { data: prog } = await supabase
-        .from('student_reading_progress')
-        .select('*')
-        .eq('student_id', profile.id)
-        .single()
-
-      // Si no tiene diagnóstico, mandarlo a hacerlo
-      if (!prog?.diagnostic_date) {
-        navigate('/diagnostic', { replace: true })
-        return
+      const done = new Map<string, number | null>()
+      for (const a of (attemptsRes.data ?? []) as { assignment_id: string; comprehension_pct: number | null }[]) {
+        done.set(a.assignment_id, a.comprehension_pct)
       }
 
-      setProgress({
-        ...prog,
-        wpm_history: typeof prog.wpm_history === 'string'
-          ? JSON.parse(prog.wpm_history)
-          : prog.wpm_history ?? [],
-      })
+      type Raw = LecAssignment & { lec_readings: { title: string; language: Language; subject: string } | null }
+      const rows = ((assignRes.data ?? []) as Raw[])
+        .filter(a => a.lec_readings)
+        .map(a => ({
+          ...a,
+          title: a.lec_readings!.title,
+          language: a.lec_readings!.language,
+          subject: a.lec_readings!.subject,
+          completed: done.has(a.id),
+          comprehension: done.get(a.id) ?? null,
+        }))
+        // Pendientes primero, luego por fecha límite
+        .sort((a, b) => Number(a.completed) - Number(b.completed) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
 
-      // Verificar si ya hizo la sesión de hoy
-      const today = new Date().toISOString().split('T')[0]
-      const { data: todaySession } = await supabase
-        .from('reading_sessions')
-        .select('id, is_completed')
-        .eq('student_id', profile.id)
-        .eq('session_date', today)
-        .eq('is_completed', true)
-        .eq('is_diagnostic', false)
-        .single()
+      const lv = { es: { level: DEFAULT_LEVEL, provisional: true }, en: { level: DEFAULT_LEVEL, provisional: true } }
+      for (const l of (levelsRes.data ?? []) as { language: Language; level: number; is_provisional: boolean }[]) {
+        lv[l.language] = { level: l.level, provisional: l.is_provisional }
+      }
 
-      setTodayDone(!!todaySession)
+      setAssignments(rows)
+      setLevels(lv)
+      setConsent((consentRes.data as LecConsent) ?? null)
       setLoading(false)
     }
     load()
-  }, [profile?.id])
+    return () => { cancelled = true }
+  }, [profile?.id, reload])
 
-    const handleJoin = async () => {
+  async function handleJoin() {
     if (!joinCode.trim() || !profile?.id) return
     setJoining(true)
     setJoinError('')
@@ -92,7 +99,7 @@ export default function StudentDashboard() {
       .select('id, name')
       .eq('invite_code', joinCode.toUpperCase())
       .eq('archived', false)
-      .single()
+      .maybeSingle()
 
     if (!group) {
       setJoinError('Código no válido. Verifica e intenta de nuevo.')
@@ -104,211 +111,164 @@ export default function StudentDashboard() {
       .from('reading_group_members')
       .upsert({ student_id: profile.id, group_id: group.id }, { onConflict: 'student_id,group_id' })
 
+    setJoining(false)
     if (error) {
       setJoinError('Error al unirse. Intenta de nuevo.')
-      setJoining(false)
       return
     }
-
-    setJoining(false)
-    setShowJoinModal(false)
+    setShowJoin(false)
     setJoinCode('')
-    alert(`¡Te uniste al grupo "${group.name}" correctamente!`)
+    setNotice(`Te uniste al grupo "${group.name}".`)
+    setReload(r => r + 1)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-sepia-100 flex items-center justify-center">
-        <div className="spinner mx-auto" />
-      </div>
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center"><div className="spinner" /></div>
     )
   }
 
-  if (!progress) return null
-
-  const wpmDelta = progress.current_wpm_avg - progress.diagnostic_wpm
+  const pending = assignments.filter(a => !a.completed)
+  const completed = assignments.filter(a => a.completed)
 
   return (
     <div className="min-h-screen bg-sepia-100">
-
-      {/* Header */}
-      <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-5">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+      <div className="bg-parchment-50 border-b border-parchment-200 px-4 sm:px-6 py-4">
+        <div className="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-2xl font-bold text-ink-900">
-              Hola, {profile?.full_name?.split(' ')[0]} 👋
-            </h1>
-            <p className={`font-body text-sm mt-0.5 ${LEVEL_COLORS[progress.current_level]}`}>
-              {LEVEL_LABELS[progress.current_level]}
-            </p>
+            <h1 className="font-display text-xl font-bold text-ink-900">LectorNKT</h1>
+            <p className="font-body text-xs text-ink-500 mt-0.5">{profile?.full_name ?? profile?.email}</p>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowJoinModal(true)}
-              className="font-body text-xs border border-teal-300 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-50 transition-colors"
+              onClick={() => setShowJoin(true)}
+              className="font-body text-xs border border-parchment-300 text-ink-600 px-3 py-2 rounded-lg hover:bg-parchment-100"
             >
               + Unirse a grupo
             </button>
-            <div className="text-right">
-              <p className="font-mono text-3xl font-bold text-teal-600">
-                {progress.current_wpm_avg}
-              </p>
-              <p className="font-body text-xs text-ink-500">wpm actual</p>
-            </div>
+            <button onClick={signOut} className="font-body text-xs text-ink-400 hover:text-ink-600">Cerrar sesión</button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+        {notice && (
+          <p className="font-body text-sm bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-4 py-2">{notice}</p>
+        )}
 
-        {/* Sesión del día */}
-        <div className={`rounded-xl p-6 border ${todayDone ? 'bg-teal-50 border-teal-200' : 'bg-parchment-50 border-parchment-200'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-body text-xs text-ink-500 mb-1">
-                {todayDone ? 'Sesión de hoy' : 'Tu sesión de hoy'}
-              </p>
-              <p className="font-display text-lg font-bold text-ink-800">
-                {todayDone ? '¡Sesión completada!' : 'Lista para comenzar'}
-              </p>
-              <p className="font-body text-sm text-ink-500 mt-1">
-                {todayDone
-                  ? 'Vuelve mañana para continuar tu racha'
-                  : '15 minutos de lectura y preguntas'}
-              </p>
-            </div>
-            {!todayDone && (
-              <button
-                onClick={() => navigate('/student/session')}
-                className="bg-teal-600 text-white font-body font-semibold px-6 py-3 rounded-xl hover:bg-teal-500 transition-colors flex-shrink-0"
-              >
-                Iniciar →
-              </button>
-            )}
-            {todayDone && (
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Métricas */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 text-center">
-            <p className="font-mono text-2xl font-bold text-amber-500">
-              {progress.streak_days}
+        {!consent && (
+          <div className="bg-gold-300/30 border border-gold-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="font-body text-sm text-ink-800">
+              Falta el consentimiento de tu familia para las lecturas en voz alta.
             </p>
-            <p className="font-body text-xs text-ink-500 mt-1">días de racha</p>
-          </div>
-          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 text-center">
-            <p className={`font-mono text-2xl font-bold ${wpmDelta >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
-              {wpmDelta >= 0 ? '+' : ''}{wpmDelta}
-            </p>
-            <p className="font-body text-xs text-ink-500 mt-1">wpm ganados</p>
-          </div>
-          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 text-center">
-            <p className="font-mono text-2xl font-bold text-blue-600">
-              {Math.max(0, progress.total_sessions - 1)}
-            </p>
-            <p className="font-body text-xs text-ink-500 mt-1">sesiones</p>
-          </div>
-        </div>
-
-        {/* Diagnóstico inicial */}
-        <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18M3 6l9-3 9 3-9 3-9-3z" />
-                </svg>
-                <p className="font-body text-xs text-ink-500">Punto de partida</p>
-              </div>
-              <p className="font-display text-base font-bold text-ink-800">
-                Diagnóstico realizado
-              </p>
-              <p className="font-body text-xs text-ink-400 mt-1">
-                {new Date(progress.diagnostic_date + 'T12:00:00').toLocaleDateString('es-MX', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric'
-                })}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-2xl font-bold text-amber-500">
-                {progress.diagnostic_wpm}
-              </p>
-              <p className="font-body text-xs text-ink-500">wpm inicial</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Historial de WPM */}
-        {progress.wpm_history.length > 1 && (
-          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
-            <p className="font-body text-xs text-ink-500 mb-4">Tu progreso de WPM</p>
-            <div className="flex items-end gap-1.5 h-20">
-              {progress.wpm_history.slice(-10).map((h, i) => {
-                const max = Math.max(...progress.wpm_history.slice(-10).map(x => x.wpm))
-                const pct = Math.round((h.wpm / max) * 100)
-                const isLast = i === progress.wpm_history.slice(-10).length - 1
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className={`w-full rounded-sm ${isLast ? 'bg-teal-500' : 'bg-teal-200'}`}
-                      style={{ height: `${pct}%` }}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex justify-between mt-2">
-              <span className="font-mono text-xs text-ink-400">
-                Inicio: {progress.diagnostic_wpm} wpm
-              </span>
-              <span className="font-mono text-xs text-teal-600 font-bold">
-                Ahora: {progress.current_wpm_avg} wpm
-              </span>
-            </div>
+            <button
+              onClick={() => navigate('/student/consent')}
+              className="font-body text-sm px-4 py-2 rounded-lg bg-ink-800 text-parchment-50 hover:bg-ink-700"
+            >
+              Llenarlo con mi familia
+            </button>
           </div>
         )}
 
+        {/* Niveles */}
+        <div className="grid grid-cols-2 gap-3">
+          {(['es', 'en'] as Language[]).map(lang => (
+            <div key={lang} className="bg-parchment-50 border border-parchment-200 rounded-xl p-4">
+              <p className="font-body text-xs text-ink-500">{lang === 'es' ? 'Lectura en español' : 'Lectura en inglés'}</p>
+              <p className="font-display text-lg font-bold text-ink-900 mt-1">
+                Nivel {levels[lang].level} · {levelName(levels[lang].level)}
+              </p>
+              {levels[lang].provisional && (
+                <p className="font-body text-xs text-ink-400 mt-0.5">Provisional, hasta tu diagnóstico</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Mis lecturas */}
+        <section className="bg-parchment-50 border border-parchment-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-parchment-200">
+            <p className="font-display font-semibold text-ink-800">Mis lecturas</p>
+            <p className="font-body text-xs text-ink-500">Las que te asignaron tus docentes</p>
+          </div>
+          {pending.length === 0 ? (
+            <p className="px-5 py-4 font-body text-sm text-ink-500">No tienes lecturas pendientes.</p>
+          ) : (
+            <ul className="divide-y divide-parchment-200">
+              {pending.map(a => (
+                <li key={a.id} className="px-5 py-4 flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="font-display font-semibold text-ink-900">{a.title}</p>
+                    <p className="font-body text-xs text-ink-500 mt-0.5">
+                      {a.subject} · {modeLabel(a.mode)}{a.due_date ? ` · Entregar antes del ${formatDate(a.due_date)}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/student/read/${a.id}`)}
+                    className="font-body text-sm px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-500"
+                  >
+                    Leer →
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {completed.length > 0 && (
+            <div className="border-t border-parchment-200 px-5 py-3">
+              <p className="font-body text-xs text-ink-500 mb-2">Completadas</p>
+              <ul className="space-y-1">
+                {completed.map(a => (
+                  <li key={a.id} className="font-body text-sm text-ink-600 flex justify-between gap-3">
+                    <span>✓ {a.title}</span>
+                    {a.comprehension !== null && <span className="font-mono text-xs text-ink-400">{Math.round(a.comprehension)}% comprensión</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        {/* Entrenamiento libre */}
+        <button
+          onClick={() => navigate('/student/library')}
+          className="w-full text-left bg-parchment-50 border border-parchment-200 rounded-xl p-5 hover:bg-parchment-100 transition-colors"
+        >
+          <p className="font-display font-semibold text-ink-800">Entrenamiento libre →</p>
+          <p className="font-body text-sm text-ink-500 mt-1">Elige una lectura de tu nivel sobre el tema que quieras.</p>
+        </button>
       </div>
-      {showJoinModal && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50 }}>
-        <div className="bg-parchment-50 rounded-xl w-full max-w-sm border border-parchment-200 p-6">
-          <h2 className="font-display text-lg font-bold text-ink-800 mb-2">Unirse a un grupo</h2>
-          <p className="font-body text-sm text-ink-500 mb-4">Ingresa el código que te dio tu docente</p>
-          <input
-            value={joinCode}
-            onChange={e => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="ej. 18DD4B"
-            maxLength={6}
-            className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-lg text-ink-800 bg-white focus:outline-none focus:border-teal-400 tracking-widest text-center mb-3"
-          />
-          {joinError && <p className="font-body text-xs text-red-500 mb-3">{joinError}</p>}
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setShowJoinModal(false); setJoinCode(''); setJoinError('') }}
-              className="flex-1 border border-parchment-300 text-ink-700 py-2.5 rounded-lg font-body text-sm hover:bg-sepia-100 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleJoin}
-              disabled={joinCode.length < 6 || joining}
-              className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-body text-sm font-medium hover:bg-teal-500 disabled:opacity-40 transition-colors"
-            >
-              {joining ? 'Uniéndose...' : 'Unirse'}
-            </button>
+
+      {showJoin && (
+        <div className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4">
+          <div className="bg-parchment-50 rounded-xl w-full max-w-sm border border-parchment-200 p-6">
+            <h2 className="font-display text-lg font-bold text-ink-800 mb-2">Unirse a un grupo</h2>
+            <p className="font-body text-sm text-ink-500 mb-4">Escribe el código que te dio tu docente</p>
+            <input
+              value={joinCode}
+              onChange={e => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="ej. 18DD4B"
+              maxLength={6}
+              className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-lg text-ink-800 bg-white focus:outline-none focus:border-teal-400 tracking-widest text-center mb-3"
+            />
+            {joinError && <p className="font-body text-xs text-crimson-500 mb-3">{joinError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowJoin(false); setJoinCode(''); setJoinError('') }}
+                className="flex-1 border border-parchment-300 text-ink-700 py-2.5 rounded-lg font-body text-sm hover:bg-sepia-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleJoin}
+                disabled={joinCode.length < 6 || joining}
+                className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-body text-sm font-medium hover:bg-teal-500 disabled:opacity-40"
+              >
+                {joining ? 'Uniéndose...' : 'Unirse'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </div>
   )
 }
