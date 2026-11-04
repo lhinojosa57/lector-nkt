@@ -8,6 +8,9 @@ import StudentDashboard from '@/pages/student/StudentDashboard'
 import TeacherDashboard from '@/pages/teacher/TeacherDashboard'
 import TeacherGroupsLector from '@/pages/teacher/TeacherGroupsLector'
 import SessionPage from '@/pages/session/SessionPage'
+import Library from '@/pages/teacher/Library'
+import ReadingDetail from '@/pages/teacher/ReadingDetail'
+import Assignments from '@/pages/teacher/Assignments'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -61,6 +64,24 @@ export default function App() {
       <Route path="/teacher/groups" element={
         <ProtectedRoute role="teacher">
           <TeacherGroupsLector />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/library" element={
+        <ProtectedRoute role="teacher">
+          <Library />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/library/:readingId" element={
+        <ProtectedRoute role="teacher">
+          <ReadingDetail />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/assignments" element={
+        <ProtectedRoute role="teacher">
+          <Assignments />
         </ProtectedRoute>
       } />
 
