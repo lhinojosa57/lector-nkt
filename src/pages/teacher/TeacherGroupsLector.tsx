@@ -40,7 +40,7 @@ export default function TeacherGroupsLector() {
     description: '',
     grado: '',
     modalidad: 'Presencial',
-    school_year: '2025-2026',
+    school_year: '2026-2027',
   })
 
   async function loadGroups() {
@@ -61,7 +61,7 @@ export default function TeacherGroupsLector() {
 
   const handleOpenCreate = () => {
     setEditingGroup(null)
-    setForm({ name: '', description: '', grado: '', modalidad: 'Presencial', school_year: '2025-2026' })
+    setForm({ name: '', description: '', grado: '', modalidad: 'Presencial', school_year: '2026-2027' })
     setShowModal(true)
   }
 
@@ -72,7 +72,7 @@ export default function TeacherGroupsLector() {
       description: g.description ?? '',
       grado: g.grado ?? '',
       modalidad: g.modalidad ?? 'Presencial',
-      school_year: g.school_year ?? '2025-2026',
+      school_year: g.school_year ?? '2026-2027',
     })
     setShowModal(true)
   }

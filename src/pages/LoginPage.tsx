@@ -26,7 +26,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-center gap-3 mt-3">
             <div className="h-px flex-1 bg-gold-400/40" />
             <span className="text-ink-400 text-xs font-mono uppercase tracking-widest">
-              Colegio Nikola Tesla
+              Aprende NKT
             </span>
             <div className="h-px flex-1 bg-gold-400/40" />
           </div>
@@ -35,7 +35,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-parchment-50 rounded-lg shadow-lg p-8 border border-parchment-200">
           <h2 className="font-display text-2xl text-ink-800 mb-2 text-center">
-            Bienvenido/a
+            ¡Hola!
           </h2>
           <p className="text-ink-500 text-sm text-center mb-8 font-body">
             Accede con tu cuenta de Google del colegio
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-ink-400 font-body mt-6">
-          Nueva Escuela Mexicana · Ciclo escolar 2025–2026
+          Nueva Escuela Mexicana · Ciclo escolar 2026–2027
         </p>
       </div>
     </div>
