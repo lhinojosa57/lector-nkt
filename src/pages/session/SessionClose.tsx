@@ -29,14 +29,18 @@ export default function SessionClose({ text, wordsRead, comprehensionScore, answ
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(true)
+  const [saveError, setSaveError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [reflection, setReflection] = useState('')
   const reflectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     async function saveSession() {
       if (!profile?.id) return
+      setSaving(true)
+      setSaveError(false)
 
-      await supabase
+      const { error } = await supabase
         .from('reading_sessions')
         .upsert({
           student_id: profile.id,
@@ -51,10 +55,14 @@ export default function SessionClose({ text, wordsRead, comprehensionScore, answ
           completed_at: new Date().toISOString(),
         }, { onConflict: 'student_id,text_id' })
 
+      if (error) {
+        console.error('Error al guardar la sesión:', error)
+        setSaveError(true)
+      }
       setSaving(false)
     }
     saveSession()
-  }, [])
+  }, [profile?.id, attempt])
 
   const handleReflection = (value: string) => {
     setReflection(value)
@@ -67,6 +75,25 @@ export default function SessionClose({ text, wordsRead, comprehensionScore, answ
         .eq('student_id', profile.id)
         .eq('text_id', text.id)
     }, 1500)
+  }
+
+  if (saveError) {
+    return (
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center bg-parchment-50 border border-parchment-200 rounded-xl p-6">
+          <p className="font-display text-lg font-bold text-ink-900 mb-2">No pudimos guardar tu sesión</p>
+          <p className="font-body text-sm text-ink-600 mb-5">
+            Revisa tu conexión a internet e inténtalo de nuevo. Tus respuestas siguen aquí.
+          </p>
+          <button
+            onClick={() => setAttempt(a => a + 1)}
+            className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 transition-colors"
+          >
+            Intentar de nuevo
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (saving) {

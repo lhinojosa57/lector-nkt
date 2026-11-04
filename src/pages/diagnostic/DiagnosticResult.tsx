@@ -29,25 +29,21 @@ function getLevel(wpm: number) {
   return LEVELS.find(l => wpm >= l.min && wpm <= l.max) ?? LEVELS[0]
 }
 
-function getProjection(wpm: number) {
-  return [
-    { label: 'Hoy',       wpm: wpm },
-    { label: 'Semana 4',  wpm: Math.round(wpm * 1.12) },
-    { label: 'Semana 8',  wpm: Math.round(wpm * 1.25) },
-    { label: 'Fin ciclo', wpm: Math.round(wpm * 1.50) },
-  ]
-}
 export default function DiagnosticResult({ wordsRead, comprehensionScore, answers, audioBlob:_audioBlob }: Props) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(true)
+  const [saveError, setSaveError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     async function saveResults() {
       if (!profile?.id) return
+      setSaving(true)
+      setSaveError(false)
 
       // Guardar la sesión del diagnóstico
-      await supabase
+      const { error: sessionError } = await supabase
         .from('reading_sessions')
         .upsert({
           student_id: profile.id,
@@ -63,8 +59,15 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
           completed_at: new Date().toISOString(),
         }, { onConflict: 'student_id,text_id' })
 
+      if (sessionError) {
+        console.error('Error al guardar el diagnóstico:', sessionError)
+        setSaveError(true)
+        setSaving(false)
+        return
+      }
+
       // Guardar el progreso inicial del estudiante
-      await supabase
+      const { error: progressError } = await supabase
         .from('student_reading_progress')
         .upsert({
           student_id: profile.id,
@@ -82,14 +85,35 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
           }]),
         }, { onConflict: 'student_id' })
 
+      if (progressError) {
+        console.error('Error al guardar el progreso:', progressError)
+        setSaveError(true)
+      }
       setSaving(false)
     }
 
     saveResults()
-  }, [])
+  }, [profile?.id, attempt])
   const level = getLevel(wordsRead)
-  const projection = getProjection(wordsRead)
-  const maxWpm = projection[projection.length - 1].wpm
+
+  if (saveError) {
+    return (
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center bg-parchment-50 border border-parchment-200 rounded-xl p-6">
+          <p className="font-display text-lg font-bold text-ink-900 mb-2">No pudimos guardar tu diagnóstico</p>
+          <p className="font-body text-sm text-ink-600 mb-5">
+            Revisa tu conexión a internet e inténtalo de nuevo. Tus respuestas siguen aquí.
+          </p>
+          <button
+            onClick={() => setAttempt(a => a + 1)}
+            className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 transition-colors"
+          >
+            Intentar de nuevo
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (saving) {
     return (
@@ -140,38 +164,6 @@ export default function DiagnosticResult({ wordsRead, comprehensionScore, answer
               {level.key === 'pensador' && 'Como los pensadores ilustrados, lees con fluidez e intención. Estás por encima del promedio.'}
               {level.key === 'corresponsal' && 'Como un corresponsal de prensa, capturas la información con velocidad y precisión.'}
               {level.key === 'humanista' && 'Eres un lector experto. Tu velocidad y comprensión son excepcionales.'}
-            </p>
-          </div>
-
-          <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
-            <p className="font-body text-xs text-ink-500 mb-4">
-              Tu proyección con práctica diaria de 15 min
-            </p>
-            <div className="space-y-2">
-              {projection.map((p, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="font-body text-xs text-ink-500 w-16 flex-shrink-0">
-                    {p.label}
-                  </span>
-                  <div className="flex-1 h-5 bg-parchment-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-5 rounded-full flex items-center justify-end pr-2 ${
-                        i === projection.length - 1 ? 'bg-teal-500' : 'bg-teal-200'
-                      }`}
-                      style={{ width: `${Math.round((p.wpm / maxWpm) * 100)}%` }}
-                    >
-                      <span className={`font-mono text-xs font-bold ${
-                        i === projection.length - 1 ? 'text-white' : 'text-teal-800'
-                      }`}>
-                        {p.wpm}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="font-body text-xs text-ink-400 mt-3">
-              Proyección basada en práctica consistente 5 días a la semana
             </p>
           </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Plus, Users, Copy, Check, X, Edit2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 interface Group {
   id: string
@@ -23,6 +24,7 @@ const MODALIDADES = ['Presencial', 'Virtual', 'Online']
 
 export default function TeacherGroupsLector() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -170,6 +172,12 @@ export default function TeacherGroupsLector() {
       <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
+            <button
+              onClick={() => navigate('/teacher')}
+              className="font-body text-xs text-ink-400 hover:text-ink-600 transition-colors flex items-center gap-1 mb-1"
+            >
+              ← Panel docente
+            </button>
             <h1 className="font-display text-xl font-bold text-ink-900">Grupos</h1>
             <p className="font-body text-xs text-ink-500 mt-0.5">Organiza tus estudiantes por grupo</p>
           </div>
