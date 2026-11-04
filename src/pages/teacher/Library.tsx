@@ -106,7 +106,7 @@ export default function Library() {
                     <div className="flex-1 min-w-[200px]">
                       <p className="font-display font-semibold text-ink-900">{r.title}</p>
                       <p className="font-body text-xs text-ink-500 mt-0.5">
-                        {r.subject} · {LANGUAGES.find(l => l.value === r.language)?.label}
+                        {r.subject} · {r.language === 'en' ? 'en inglés' : 'en español'}
                         {r.topic ? ` · ${r.topic}` : ''}
                       </p>
                     </div>

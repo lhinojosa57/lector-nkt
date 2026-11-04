@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Plus, Users, Copy, Check, X, Edit2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import TeacherHeader from '@/components/TeacherHeader'
 
 interface Group {
   id: string
@@ -24,7 +24,6 @@ const MODALIDADES = ['Presencial', 'Virtual', 'Online']
 
 export default function TeacherGroupsLector() {
   const { profile } = useAuth()
-  const navigate = useNavigate()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -169,32 +168,19 @@ export default function TeacherGroupsLector() {
 
   return (
     <div className="min-h-screen bg-sepia-100">
-      <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <button
-              onClick={() => navigate('/teacher')}
-              className="font-body text-xs text-ink-400 hover:text-ink-600 transition-colors flex items-center gap-1 mb-1"
-            >
-              ← Panel docente
-            </button>
-            <h1 className="font-display text-xl font-bold text-ink-900">Grupos</h1>
-            <p className="font-body text-xs text-ink-500 mt-0.5">Organiza tus estudiantes por grupo</p>
-          </div>
+      <TeacherHeader title="Grupos" />
+
+      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+
+        {/* Toggle archivados + nuevo grupo */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg font-body text-sm font-medium hover:bg-teal-500 transition-colors"
+            className="order-last sm:ml-auto flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg font-body text-sm font-medium hover:bg-teal-500 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Nuevo grupo
           </button>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto p-6">
-
-        {/* Toggle archivados */}
-        <div className="flex gap-3 mb-6">
           <button
             onClick={() => setShowArchived(false)}
             className={`font-body text-sm px-4 py-2 rounded-lg transition-colors ${!showArchived ? 'bg-teal-600 text-white' : 'bg-parchment-50 text-ink-600 border border-parchment-200'}`}
@@ -323,8 +309,8 @@ export default function TeacherGroupsLector() {
       </div>
 
       {showModal && (
-        <div style={{ minHeight: '100vh', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200">
+        <div className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4">
+          <div className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-parchment-200">
               <h2 className="font-display text-lg font-semibold text-ink-800">
                 {editingGroup ? 'Editar grupo' : 'Nuevo grupo'}

@@ -90,7 +90,7 @@ export default function ReadingDetail() {
           <div>
             <h2 className="font-display text-2xl font-bold text-ink-900">{reading.title}</h2>
             <p className="font-body text-sm text-ink-500 mt-1">
-              {reading.subject} · {LANGUAGES.find(l => l.value === reading.language)?.label}
+              Materia: {reading.subject} · Idioma: {LANGUAGES.find(l => l.value === reading.language)?.label.toLowerCase()}
               {reading.topic ? ` · ${reading.topic}` : ''}
               {reading.text_type ? ` · ${reading.text_type}` : ''}
             </p>
