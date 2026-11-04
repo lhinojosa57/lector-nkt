@@ -356,8 +356,8 @@ insert into public.lec_questions (id, version_id, skill, text, options, correct_
 select
   q.id,
   q.text_id,
-  case when q.question_level in ('literal', 'inferencial', 'vocabulario', 'estructura', 'idea_principal', 'critica')
-       then q.question_level else 'literal' end,
+  case when q.question_level::text in ('literal', 'inferencial', 'vocabulario', 'estructura', 'idea_principal', 'critica')
+       then q.question_level::text else 'literal' end,
   q.question_text,
   case
     when q.options is null then '[]'::jsonb
