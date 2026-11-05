@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import AloudRecorder from '@/components/AloudRecorder'
+import { audioFileName, preloadDrive, requestDriveAccess, uploadAudio } from '@/lib/drive'
 import {
   DEFAULT_LEVEL, SKILL_LABELS, asArray, levelName, modeLabel, pickVersion,
   type Language, type LecReading, type LecVersion, type QuestionOption, type ReadingMode, type Skill, type VocabularyItem,
@@ -17,8 +18,11 @@ interface PublicQuestion {
 
 type Step = 'loading' | 'error' | 'already' | 'intro' | 'vocab' | 'reading' | 'questions' | 'saving' | 'close'
 
-// La subida de audios a Drive llega en la Parte 4 de la Fase 1.
-const AUDIO_UPLOAD_ENABLED = false
+// Los audios se guardan en el Drive institucional del estudiante (ver src/lib/drive.ts).
+const AUDIO_UPLOAD_ENABLED = true
+
+type UploadState = 'idle' | 'uploading' | 'done' | 'error'
+
 
 export default function ReadingSession() {
   const { assignmentId, readingId: practiceReadingId } = useParams<{ assignmentId?: string; readingId?: string }>()
@@ -38,6 +42,13 @@ export default function ReadingSession() {
   const [audioSeconds, setAudioSeconds] = useState<number | null>(null)
   const [comprehension, setComprehension] = useState<number | null>(null)
   const readingStartRef = useRef(0)
+  const [driveError, setDriveError] = useState('')
+  const [upload, setUpload] = useState<UploadState>('idle')
+  const audioBlobRef = useRef<Blob | null>(null)
+
+  useEffect(() => {
+    if (mode === 'aloud' && AUDIO_UPLOAD_ENABLED) preloadDrive()
+  }, [mode])
 
   useEffect(() => {
     if (step === 'reading') readingStartRef.current = Date.now()
@@ -126,6 +137,19 @@ export default function ReadingSession() {
 
   async function start() {
     if (!profile?.id || !version) return
+    if (mode === 'aloud' && AUDIO_UPLOAD_ENABLED) {
+      setDriveError('')
+      try {
+        await requestDriveAccess(profile.email)
+      } catch (err) {
+        console.error(err)
+        setDriveError(
+          'Para guardar tu grabación necesitamos tu permiso en la ventana de Google. ' +
+          'Si no se abrió, revisa que tu navegador no esté bloqueando ventanas emergentes.'
+        )
+        return
+      }
+    }
     const { data, error } = await supabase
       .from('lec_attempts')
       .insert({
@@ -144,6 +168,22 @@ export default function ReadingSession() {
     }
     setAttemptId(data.id)
     setStep(version.vocabulary.length ? 'vocab' : 'reading')
+  }
+
+  async function sendAudio() {
+    const blob = audioBlobRef.current
+    if (!blob || !attemptId || !reading || !version) return
+    setUpload('uploading')
+    try {
+      const { id, shared } = await uploadAudio(blob, audioFileName(reading.title, version.level, blob.type))
+      if (!shared) console.warn('El audio se guardó pero no se pudo compartir con docentes')
+      const { error } = await supabase.from('lec_attempts').update({ drive_file_id: id }).eq('id', attemptId)
+      if (error) throw error
+      setUpload('done')
+    } catch (err) {
+      console.error(err)
+      setUpload('error')
+    }
   }
 
   function goToQuestions(secondsRead?: number) {
@@ -258,6 +298,15 @@ export default function ReadingSession() {
               <p>{version.vocabulary.length ? '3' : '2'}. Contesta {questions.length} preguntas sobre lo que leíste.</p>
             </div>
 
+            {driveError && (
+              <div className="mt-4 bg-gold-300/30 border border-gold-400 rounded-lg p-3 space-y-2">
+                <p className="font-body text-sm text-ink-800">{driveError}</p>
+                <button onClick={() => { setMode('silent'); setDriveError('') }} className="font-body text-xs underline text-ink-600">
+                  Mejor hacerla en silencio
+                </button>
+              </div>
+            )}
+
             <button onClick={start} className="mt-6 w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500">
               Empezar
             </button>
@@ -300,7 +349,11 @@ export default function ReadingSession() {
         <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
           {mode === 'aloud' && (
             <AloudRecorder
-              onDone={(seconds) => { setAudioSeconds(seconds) }}
+              onDone={(seconds, blob) => {
+                setAudioSeconds(seconds)
+                audioBlobRef.current = blob
+                if (AUDIO_UPLOAD_ENABLED) void sendAudio()
+              }}
               uploadEnabled={AUDIO_UPLOAD_ENABLED}
             />
           )}
@@ -315,11 +368,23 @@ export default function ReadingSession() {
             onClick={() => goToQuestions(
               mode === 'silent' ? Math.max(1, Math.round((Date.now() - readingStartRef.current) / 1000)) : undefined
             )}
-            disabled={mode === 'aloud' && audioSeconds === null}
+            disabled={mode === 'aloud' && (audioSeconds === null || (AUDIO_UPLOAD_ENABLED && upload !== 'done'))}
             className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 disabled:opacity-40"
           >
-            {mode === 'aloud' && audioSeconds === null ? 'Primero graba tu lectura' : 'Terminé de leer →'}
+            {mode === 'aloud' && audioSeconds === null
+              ? 'Primero graba tu lectura'
+              : mode === 'aloud' && upload === 'uploading'
+                ? 'Enviando tu grabación...'
+                : 'Terminé de leer →'}
           </button>
+          {mode === 'aloud' && upload === 'error' && (
+            <div className="bg-red-50 border border-crimson-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="font-body text-sm text-crimson-600">No pudimos guardar tu grabación en tu Drive. Revisa tu conexión.</p>
+              <button onClick={() => void sendAudio()} className="font-body text-sm bg-crimson-500 text-white px-4 py-2 rounded-lg">
+                Reintentar
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
