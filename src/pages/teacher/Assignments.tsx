@@ -186,7 +186,7 @@ export default function Assignments() {
                         Eliminar
                       </button>
                     ) : (
-                      <span className="font-body text-[11px] text-ink-300" title="Ya hay estudiantes que la empezaron; solo se puede archivar.">
+                      <span className="font-body text-[11px] text-ink-400" title="Ya hay estudiantes que la empezaron; solo se puede archivar.">
                         Ya iniciada
                       </span>
                     )}

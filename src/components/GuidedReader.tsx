@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 /**
  * Lectura guiada: la app marca palabra por palabra a un ritmo fijo y se detiene
@@ -44,7 +44,7 @@ function tokenize(body: string): Token[][] {
     })
 }
 
-export default function GuidedReader({ body, onDone }: { body: string; onDone: () => void }) {
+export default function GuidedReader({ body, onDone, textStyle }: { body: string; onDone: () => void; textStyle?: CSSProperties }) {
   const paragraphs = useMemo(() => tokenize(body), [body])
   const flat = useMemo(() => paragraphs.flat(), [paragraphs])
 
@@ -123,7 +123,7 @@ export default function GuidedReader({ body, onDone }: { body: string; onDone: (
         Lee en voz alta siguiendo la palabra marcada. Cuando un signo se ponga rojo, haz la pausa: corta en la coma, más larga en el punto.
       </p>
 
-      <div className="font-body text-lg text-ink-800 leading-relaxed space-y-5">
+      <div className="font-body text-lg text-ink-800 leading-relaxed space-y-5" style={textStyle}>
         {paragraphs.map((p, pi) => (
           <p key={pi}>
             {p.map(t => {

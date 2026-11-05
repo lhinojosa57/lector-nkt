@@ -5,6 +5,9 @@ import { useAuth } from '@/lib/auth'
 import AloudRecorder from '@/components/AloudRecorder'
 import GuidedReader from '@/components/GuidedReader'
 import ReadingRuler from '@/components/ReadingRuler'
+import ReadingPrefsControl from '@/components/ReadingPrefsControl'
+import SpeakButton from '@/components/SpeakButton'
+import { textStyle, themeClass, useReadingPrefs, zoomStyle, type ReadingPrefs } from '@/lib/prefs'
 import { audioFileName, preloadDrive, requestDriveAccess, uploadAudio } from '@/lib/drive'
 import {
   DEFAULT_LEVEL, SKILL_LABELS, asArray, levelName, modeLabel, pickVersion,
@@ -48,6 +51,9 @@ export default function ReadingSession() {
   const [upload, setUpload] = useState<UploadState>('idle')
   const audioBlobRef = useRef<Blob | null>(null)
   const [guidedDone, setGuidedDone] = useState(false)
+  const { prefs, update: updatePrefs } = useReadingPrefs()
+  const [ttsAllowed, setTtsAllowed] = useState(false) // apoyo activado por su docente
+  const usedTtsRef = useRef(false)
 
   useEffect(() => {
     if (mode === 'aloud' && AUDIO_UPLOAD_ENABLED) preloadDrive()
@@ -105,10 +111,11 @@ export default function ReadingSession() {
       }
       const lecReading = r as LecReading
 
-      const [{ data: lvl }, { data: consent }] = await Promise.all([
+      const [{ data: lvl }, { data: consent }, { data: acc }] = await Promise.all([
         supabase.from('lec_student_levels').select('level')
           .eq('student_id', studentId).eq('language', lecReading.language as Language).maybeSingle(),
         supabase.from('lec_consents').select('accepts_voice_recording').eq('student_id', studentId).maybeSingle(),
+        supabase.from('lec_accommodations').select('tts').eq('student_id', studentId).maybeSingle(),
       ])
 
       const studentLevel = lvl?.level ?? DEFAULT_LEVEL
@@ -132,6 +139,7 @@ export default function ReadingSession() {
       setQuestions(((qs ?? []) as PublicQuestion[]).map(q => ({ ...q, options: asArray<QuestionOption>(q.options) })))
       setMode(effectiveMode)
       setModeNotice(notice)
+      setTtsAllowed(!!acc?.tts)
       setStep('intro')
     }
     load()
@@ -252,14 +260,22 @@ export default function ReadingSession() {
 
   if (!reading || !version) return null
 
+  // La app puede leer en voz alta: en "Solo comprensión" para todos, o si su docente activó el apoyo.
+  // Nunca en Voz alta ni Lectura guiada: ahí se trabaja la lectura propia del estudiante.
+  const canListen = (ttsAllowed || mode === 'comprehension') && mode !== 'aloud' && mode !== 'guided'
+  const lang = reading.language
+
   const header = (
     <div className="bg-parchment-50 border-b border-parchment-200 px-4 sm:px-6 py-3">
       <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-display font-semibold text-ink-800 truncate">{reading.title}</p>
+          <h1 className="font-display font-semibold text-ink-800 truncate">{reading.title}</h1>
           <p className="font-body text-xs text-ink-500">{modeLabel(mode)} · Nivel {version.level} · {levelName(version.level)}</p>
         </div>
-        <button onClick={() => navigate('/student')} className="font-body text-xs text-ink-400 hover:text-ink-600 flex-shrink-0">Salir</button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <ReadingPrefsControl prefs={prefs} update={updatePrefs} />
+          <button onClick={() => navigate('/student')} className="font-body text-xs text-ink-500 hover:text-ink-700">Salir</button>
+        </div>
       </div>
     </div>
   )
@@ -283,6 +299,7 @@ export default function ReadingSession() {
                   <button
                     key={m}
                     onClick={() => setMode(m)}
+                    aria-pressed={mode === m}
                     className={`flex-1 font-body text-sm py-2 rounded-lg border ${
                       mode === m ? 'bg-teal-600 text-white border-teal-600' : 'border-parchment-300 text-ink-600'
                     }`}
@@ -303,7 +320,7 @@ export default function ReadingSession() {
             </div>
 
             {driveError && (
-              <div className="mt-4 bg-gold-300/30 border border-gold-400 rounded-lg p-3 space-y-2">
+              <div role="alert" className="mt-4 bg-gold-300/30 border border-gold-400 rounded-lg p-3 space-y-2">
                 <p className="font-body text-sm text-ink-800">{driveError}</p>
                 <button onClick={() => { setMode('silent'); setDriveError('') }} className="font-body text-xs underline text-ink-600">
                   Mejor hacerla en silencio
@@ -328,15 +345,16 @@ export default function ReadingSession() {
           <Card>
             <p className="font-display text-lg font-bold text-ink-900 mb-1">Palabras clave</p>
             <p className="font-body text-sm text-ink-500 mb-4">Las vas a encontrar en el texto.</p>
-            <ul className="space-y-3">
+            <ul className={`space-y-3 rounded-lg ${themeClass(prefs)}`} style={zoomStyle(prefs)} lang={lang}>
               {version.vocabulary.map((v, i) => (
                 <li key={i} className="bg-white border border-parchment-200 rounded-lg p-3 flex items-start gap-3">
-                  {v.icon && <span className="text-3xl leading-none flex-shrink-0 w-10 text-center" aria-hidden>{v.icon}</span>}
-                  <div className="min-w-0">
+                  {v.icon && <span className="lec-noinvert text-3xl leading-none flex-shrink-0 w-10 text-center" aria-hidden>{v.icon}</span>}
+                  <div className="min-w-0 flex-1">
                     <p className="font-display font-semibold text-ink-900">{v.word}</p>
                     <p className="font-body text-sm text-ink-600">{v.definition}</p>
-                    {v.example && <p className="font-body text-xs text-ink-400 italic mt-1">{v.example}</p>}
+                    {v.example && <p className="font-body text-xs text-ink-500 italic mt-1">{v.example}</p>}
                   </div>
+                  {canListen && <SpeakButton text={`${v.word}. ${v.definition}`} lang={lang} label="Oír" />}
                 </li>
               ))}
             </ul>
@@ -366,20 +384,31 @@ export default function ReadingSession() {
           )}
           {mode === 'silent' && <SilentTimer startRef={readingStartRef} />}
 
-          <article className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8" {...noCopy}>
-            <h2 className="font-display text-2xl font-bold text-ink-900 mb-4">{reading.title}</h2>
+          <article
+            lang={lang}
+            className={`bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8 ${themeClass(prefs)}`}
+            {...noCopy}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <h2 className="font-display text-2xl font-bold text-ink-900">{reading.title}</h2>
+              {canListen && (
+                <SpeakButton text={`${reading.title}. ${version.body}`} lang={lang} label="Escuchar la lectura" onUse={() => { usedTtsRef.current = true }} />
+              )}
+            </div>
             {mode === 'guided' ? (
-              <GuidedReader body={version.body} onDone={() => setGuidedDone(true)} />
+              <GuidedReader body={version.body} onDone={() => setGuidedDone(true)} textStyle={textStyle(prefs)} />
             ) : (
               <ReadingRuler>
-                <div className="font-body text-lg text-ink-800 leading-relaxed whitespace-pre-line">{version.body}</div>
+                <div className="font-body text-ink-800 whitespace-pre-line" style={textStyle(prefs)}>{version.body}</div>
               </ReadingRuler>
             )}
           </article>
 
           <button
             onClick={() => goToQuestions(
-              mode === 'silent' ? Math.max(1, Math.round((Date.now() - readingStartRef.current) / 1000)) : undefined
+              mode === 'silent' && !usedTtsRef.current
+                ? Math.max(1, Math.round((Date.now() - readingStartRef.current) / 1000))
+                : undefined
             )}
             disabled={
               (mode === 'aloud' && (audioSeconds === null || (AUDIO_UPLOAD_ENABLED && upload !== 'done'))) ||
@@ -395,8 +424,13 @@ export default function ReadingSession() {
                 ? 'Enviando tu grabación...'
                 : 'Terminé de leer →'}
           </button>
+          <p className="sr-only-lec" aria-live="polite">
+            {mode === 'aloud' && upload === 'uploading' ? 'Enviando tu grabación.' : ''}
+            {mode === 'aloud' && upload === 'done' ? 'Tu grabación quedó guardada. Ya puedes ir a las preguntas.' : ''}
+            {mode === 'guided' && guidedDone ? 'Terminaste la lectura guiada. Ya puedes ir a las preguntas.' : ''}
+          </p>
           {mode === 'aloud' && upload === 'error' && (
-            <div className="bg-red-50 border border-crimson-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div role="alert" className="bg-red-50 border border-crimson-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
               <p className="font-body text-sm text-crimson-600">No pudimos guardar tu grabación en tu Drive. Revisa tu conexión.</p>
               <button onClick={() => void sendAudio()} className="font-body text-sm bg-crimson-500 text-white px-4 py-2 rounded-lg">
                 Reintentar
@@ -416,6 +450,9 @@ export default function ReadingSession() {
           attemptId={attemptId!}
           questions={questions}
           onFinish={finish}
+          prefs={prefs}
+          lang={lang}
+          canListen={canListen}
         />
       </div>
     )
@@ -476,17 +513,23 @@ function SilentTimer({ startRef }: { startRef: React.RefObject<number> }) {
 
   return (
     <div className="sticky top-0 z-10 bg-ink-800 text-parchment-50 rounded-xl px-5 py-3 flex items-center justify-between">
-      <span className="font-mono text-xl">{mm}:{ss}</span>
+      <span className="font-mono text-xl" aria-hidden>{mm}:{ss}</span>
+      <span className="sr-only-lec">Cronómetro en marcha.</span>
       <span className="font-body text-xs text-parchment-300">Al terminar, presiona el botón de abajo</span>
     </div>
   )
 }
 
-function QuestionsStep({ attemptId, questions, onFinish }: {
+function QuestionsStep({ attemptId, questions, onFinish, prefs, lang, canListen }: {
   attemptId: string
   questions: PublicQuestion[]
   onFinish: (pct: number | null) => void
+  prefs: ReadingPrefs
+  lang: string
+  canListen: boolean
 }) {
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const headingRef = useRef<HTMLHeadingElement>(null)
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [result, setResult] = useState<{ is_correct: boolean; correct_option: string; explanation: string | null } | null>(null)
@@ -516,6 +559,23 @@ function QuestionsStep({ attemptId, questions, onFinish }: {
     if (r.is_correct) setCorrectCount(c => c + 1)
   }
 
+  // Al cambiar de pregunta, el foco va a la pregunta nueva (lectores de pantalla y teclado)
+  useEffect(() => { headingRef.current?.focus() }, [index])
+
+  // Flechas para moverse entre opciones, como un grupo de opciones normal
+  function onOptionKey(e: React.KeyboardEvent, i: number) {
+    if (result) return
+    const n = q.options.length
+    let j = -1
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = (i + 1) % n
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') j = (i - 1 + n) % n
+    if (j >= 0) {
+      e.preventDefault()
+      setSelected(q.options[j].id)
+      optionRefs.current[j]?.focus()
+    }
+  }
+
   function next() {
     if (index + 1 < questions.length) {
       setIndex(i => i + 1)
@@ -533,10 +593,27 @@ function QuestionsStep({ attemptId, questions, onFinish }: {
         <span className="font-body text-xs px-2 py-1 rounded-full bg-parchment-200 text-ink-600">{SKILL_LABELS[q.skill]}</span>
       </div>
 
-      <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5" {...noCopy}>
-        <p className="font-display text-lg font-bold text-ink-900 mb-4 leading-snug">{q.text}</p>
-        <div className="space-y-2">
-          {q.options.map(opt => {
+      <div
+        lang={lang}
+        className={`bg-parchment-50 border border-parchment-200 rounded-xl p-5 ${themeClass(prefs)}`}
+        {...noCopy}
+        style={{ ...noCopy.style, ...zoomStyle(prefs) }}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h2 ref={headingRef} tabIndex={-1} id={`q-${q.id}`} className="font-display text-lg font-bold text-ink-900 leading-snug">
+            {q.text}
+          </h2>
+          {canListen && (
+            <SpeakButton
+              key={q.id}
+              text={`${q.text} ${q.options.map((o, i) => `Opción ${i + 1}: ${o.text}.`).join(' ')}`}
+              lang={lang}
+              label="Oír"
+            />
+          )}
+        </div>
+        <div className="space-y-2" role="radiogroup" aria-labelledby={`q-${q.id}`}>
+          {q.options.map((opt, i) => {
             let style = 'border-parchment-300 bg-white text-ink-800 hover:border-teal-400'
             if (result) {
               if (opt.id === result.correct_option) style = 'border-teal-500 bg-teal-50 text-teal-800'
@@ -548,23 +625,32 @@ function QuestionsStep({ attemptId, questions, onFinish }: {
             return (
               <button
                 key={opt.id}
-                disabled={!!result}
-                onClick={() => setSelected(opt.id)}
+                ref={el => { optionRefs.current[i] = el }}
+                role="radio"
+                aria-checked={opt.id === selected}
+                aria-disabled={!!result}
+                tabIndex={opt.id === selected || (!selected && i === 0) ? 0 : -1}
+                onClick={() => { if (!result) setSelected(opt.id) }}
+                onKeyDown={e => onOptionKey(e, i)}
                 className={`w-full text-left font-body text-sm border rounded-lg px-4 py-3 transition-colors ${style}`}
               >
                 {opt.text}
+                {result && opt.id === result.correct_option && <span className="sr-only-lec"> (respuesta correcta)</span>}
+                {result && opt.id === selected && opt.id !== result.correct_option && <span className="sr-only-lec"> (tu respuesta)</span>}
               </button>
             )
           })}
         </div>
 
+        <div aria-live="polite">
         {result && (
           <div className={`mt-4 rounded-lg p-3 font-body text-sm ${result.is_correct ? 'bg-teal-50 text-teal-800' : 'bg-parchment-100 text-ink-700'}`}>
             <p className="font-semibold">{result.is_correct ? '¡Correcto!' : 'No exactamente.'}</p>
             {result.explanation && <p className="mt-1">{result.explanation}</p>}
           </div>
         )}
-        {error && <p className="mt-3 font-body text-sm text-crimson-500">{error}</p>}
+        </div>
+        {error && <p role="alert" className="mt-3 font-body text-sm text-crimson-500">{error}</p>}
       </div>
 
       {result ? (
@@ -648,8 +734,9 @@ function CloseStep({ attemptId, comprehension, readingSeconds, wordCount, curios
       )}
 
       <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
-        <p className="font-display font-semibold text-ink-800 mb-2">¿Qué fue lo más interesante de lo que leíste?</p>
+        <label htmlFor="reflexion" className="block font-display font-semibold text-ink-800 mb-2">¿Qué fue lo más interesante de lo que leíste?</label>
         <textarea
+          id="reflexion"
           value={reflection}
           onChange={e => handleChange(e.target.value)}
           onPaste={e => e.preventDefault()}

@@ -66,7 +66,7 @@ export default function AloudRecorder({ onDone, uploadEnabled }: Props) {
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-ink-800 text-parchment-50 rounded-xl px-5 py-4">
+    <div className="sticky top-0 z-10 bg-ink-800 text-parchment-50 rounded-xl px-5 py-4" aria-live="polite">
       {state === 'idle' && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-body text-sm">Cuando estés lista(o), presiona grabar y lee el texto en voz alta. Tienes 1 minuto.</p>
@@ -77,7 +77,7 @@ export default function AloudRecorder({ onDone, uploadEnabled }: Props) {
       )}
       {state === 'asking' && <p className="font-body text-sm">Permite el uso del micrófono en la ventana de tu navegador...</p>}
       {state === 'denied' && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-body text-sm space-y-1">
             <p className="font-semibold">No pudimos usar el micrófono.</p>
             <p className="text-parchment-200">
@@ -92,7 +92,8 @@ export default function AloudRecorder({ onDone, uploadEnabled }: Props) {
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-crimson-400 animate-pulse" />
-            <span className="font-mono text-xl">0:{String(secondsLeft).padStart(2, '0')}</span>
+            <span className="font-mono text-xl" aria-hidden>0:{String(secondsLeft).padStart(2, '0')}</span>
+            <span className="sr-only-lec">Grabando. Presiona Terminé cuando acabes.</span>
           </span>
           <button onClick={stopRecording} className="font-body text-sm bg-parchment-50 text-ink-800 px-4 py-2 rounded-lg">
             Terminé

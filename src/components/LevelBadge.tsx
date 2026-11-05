@@ -19,6 +19,7 @@ export default function LevelBadge({ level, size = 'md' }: { level: number; size
     <div
       className={`${box} ${b.bg} ${b.fg} ring-2 ${b.ring} rounded-full flex items-center justify-center flex-shrink-0`}
       title={`Nivel ${level} · ${levelName(level)}`}
+      aria-hidden
     >
       <Icon size={icon} strokeWidth={1.8} />
     </div>

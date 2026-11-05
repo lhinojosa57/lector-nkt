@@ -162,7 +162,7 @@ export default function StudentDashboard() {
 
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
         {notice && (
-          <p className="font-body text-sm bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-4 py-2">{notice}</p>
+          <p role="status" className="font-body text-sm bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-4 py-2">{notice}</p>
         )}
 
         {!consent && (
@@ -201,7 +201,7 @@ export default function StudentDashboard() {
         {/* Mis lecturas */}
         <section className="bg-parchment-50 border border-parchment-200 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-parchment-200">
-            <p className="font-display font-semibold text-ink-800">Mis lecturas</p>
+            <h2 className="font-display font-semibold text-ink-800">Mis lecturas</h2>
             <p className="font-body text-xs text-ink-500">Las que te asignaron tus docentes</p>
           </div>
           {pending.length === 0 ? (
@@ -218,6 +218,7 @@ export default function StudentDashboard() {
                   </div>
                   <button
                     onClick={() => navigate(`/student/read/${a.id}`)}
+                    aria-label={`Leer ${a.title}`}
                     className="font-body text-sm px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-500"
                   >
                     Leer →
@@ -272,18 +273,29 @@ export default function StudentDashboard() {
       </div>
 
       {showJoin && (
-        <div className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4">
-          <div className="bg-parchment-50 rounded-xl w-full max-w-sm border border-parchment-200 p-6">
-            <h2 className="font-display text-lg font-bold text-ink-800 mb-2">Unirse a un grupo</h2>
-            <p className="font-body text-sm text-ink-500 mb-4">Escribe el código que te dio tu docente</p>
+        <div
+          className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4"
+          onKeyDown={e => { if (e.key === 'Escape') { setShowJoin(false); setJoinCode(''); setJoinError('') } }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="join-title"
+            aria-describedby="join-desc"
+            className="bg-parchment-50 rounded-xl w-full max-w-sm border border-parchment-200 p-6"
+          >
+            <h2 id="join-title" className="font-display text-lg font-bold text-ink-800 mb-2">Unirse a un grupo</h2>
+            <p id="join-desc" className="font-body text-sm text-ink-500 mb-4">Escribe el código que te dio tu docente</p>
             <input
+              autoFocus
+              aria-label="Código del grupo"
               value={joinCode}
               onChange={e => setJoinCode(e.target.value.toUpperCase())}
               placeholder="ej. 18DD4B"
               maxLength={6}
-              className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-lg text-ink-800 bg-white focus:outline-none focus:border-teal-400 tracking-widest text-center mb-3"
+              className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-lg text-ink-800 bg-white focus:border-teal-400 tracking-widest text-center mb-3"
             />
-            {joinError && <p className="font-body text-xs text-crimson-500 mb-3">{joinError}</p>}
+            {joinError && <p role="alert" className="font-body text-xs text-crimson-500 mb-3">{joinError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowJoin(false); setJoinCode(''); setJoinError('') }}

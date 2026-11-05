@@ -179,7 +179,7 @@ export default function SessionClose({ text, wordsRead, comprehensionScore, answ
               onPaste={e => e.preventDefault()}
               placeholder="Escribe lo que quieras..."
               rows={3}
-              className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:outline-none focus:border-teal-400 resize-none"
+              className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:border-teal-400 resize-none"
             />
           </div>
 

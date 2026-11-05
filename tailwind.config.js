@@ -11,7 +11,7 @@ export default {
           100: '#f5f0e8',
           200: '#e8dcc8',
           300: '#c9b89a',
-          400: '#9d8567',
+          400: '#7a6545', // oscurecido para contraste ≥ 4.5:1 (WCAG AA)
           500: '#6b5838',
           600: '#5c4424',
           700: '#3d2c14',
@@ -23,6 +23,17 @@ export default {
           100: '#f9f1e3',
           200: '#f4e9d4',
           300: '#e8d3a9',
+        },
+        // Verde azulado más oscuro: texto blanco sobre botones con contraste ≥ 4.5:1
+        teal: {
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          400: '#0d9488',
+          500: '#115e59', // hover más oscuro
+          600: '#0f766e',
+          700: '#115e59',
+          800: '#134e4a',
         },
         sepia: {
           100: '#f4e9d4',
