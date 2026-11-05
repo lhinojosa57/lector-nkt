@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import LevelBadge, { levelMotto } from '@/components/LevelBadge'
 import {
-  DEFAULT_LEVEL, formatDate, levelName, modeLabel,
+  DEFAULT_LEVEL, comprehensionLight, formatDate, levelName, modeLabel, type Light,
   type Language, type LecAssignment, type LecConsent,
 } from '@/lib/lec'
 
@@ -13,6 +14,13 @@ interface AssignmentRow extends LecAssignment {
   subject: string
   completed: boolean
   comprehension: number | null
+  completedAt: string | null
+}
+
+const LIGHT_DOT: Record<Light, string> = {
+  green: 'bg-emerald-500',
+  yellow: 'bg-amber-400',
+  red: 'bg-red-500',
 }
 
 export default function StudentDashboard() {
@@ -56,9 +64,9 @@ export default function StudentDashboard() {
       ])
       if (cancelled) return
 
-      const done = new Map<string, number | null>()
-      for (const a of (attemptsRes.data ?? []) as { assignment_id: string; comprehension_pct: number | null }[]) {
-        done.set(a.assignment_id, a.comprehension_pct)
+      const done = new Map<string, { pct: number | null; at: string }>()
+      for (const a of (attemptsRes.data ?? []) as { assignment_id: string; comprehension_pct: number | null; completed_at: string }[]) {
+        done.set(a.assignment_id, { pct: a.comprehension_pct, at: a.completed_at })
       }
 
       type Raw = LecAssignment & { lec_readings: { title: string; language: Language; subject: string } | null }
@@ -70,7 +78,8 @@ export default function StudentDashboard() {
           language: a.lec_readings!.language,
           subject: a.lec_readings!.subject,
           completed: done.has(a.id),
-          comprehension: done.get(a.id) ?? null,
+          comprehension: done.get(a.id)?.pct ?? null,
+          completedAt: done.get(a.id)?.at ?? null,
         }))
         // Pendientes primero, luego por fecha límite
         .sort((a, b) => Number(a.completed) - Number(b.completed) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
@@ -173,14 +182,18 @@ export default function StudentDashboard() {
         {/* Niveles */}
         <div className="grid grid-cols-2 gap-3">
           {(['es', 'en'] as Language[]).map(lang => (
-            <div key={lang} className="bg-parchment-50 border border-parchment-200 rounded-xl p-4">
-              <p className="font-body text-xs text-ink-500">{lang === 'es' ? 'Lectura en español' : 'Lectura en inglés'}</p>
-              <p className="font-display text-lg font-bold text-ink-900 mt-1">
-                Nivel {levels[lang].level} · {levelName(levels[lang].level)}
-              </p>
-              {levels[lang].provisional && (
-                <p className="font-body text-xs text-ink-400 mt-0.5">Provisional, hasta tu diagnóstico</p>
-              )}
+            <div key={lang} className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 flex items-center gap-3">
+              <LevelBadge level={levels[lang].level} />
+              <div className="min-w-0">
+                <p className="font-body text-xs text-ink-500">{lang === 'es' ? 'Lectura en español' : 'Lectura en inglés'}</p>
+                <p className="font-display text-lg font-bold text-ink-900 leading-tight">
+                  Nivel {levels[lang].level} · {levelName(levels[lang].level)}
+                </p>
+                <p className="font-body text-xs text-ink-500 italic">{levelMotto(levels[lang].level)}</p>
+                {levels[lang].provisional && (
+                  <p className="font-body text-xs text-ink-400 mt-0.5">Provisional, hasta tu diagnóstico</p>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -214,16 +227,36 @@ export default function StudentDashboard() {
             </ul>
           )}
           {completed.length > 0 && (
-            <div className="border-t border-parchment-200 px-5 py-3">
-              <p className="font-body text-xs text-ink-500 mb-2">Completadas</p>
-              <ul className="space-y-1">
-                {completed.map(a => (
-                  <li key={a.id} className="font-body text-sm text-ink-600 flex justify-between gap-3">
-                    <span>✓ {a.title}</span>
-                    {a.comprehension !== null && <span className="font-mono text-xs text-ink-400">{Math.round(a.comprehension)}% comprensión</span>}
-                  </li>
-                ))}
+            <div className="border-t border-parchment-200">
+              <p className="px-5 pt-3 pb-1 font-body text-xs text-ink-500">Completadas</p>
+              <ul className="divide-y divide-parchment-200">
+                {completed.map(a => {
+                  const light = a.comprehension !== null ? comprehensionLight(a.comprehension) : null
+                  return (
+                    <li key={a.id} className="px-5 py-3 flex items-center gap-3">
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full flex-shrink-0 ${light ? LIGHT_DOT[light.light] : 'bg-parchment-300'}`}
+                        aria-hidden
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body text-sm text-ink-800">{a.title}</p>
+                        <p className="font-body text-xs text-ink-500">
+                          {a.subject} · {modeLabel(a.mode)}{a.completedAt ? ` · ${new Date(a.completedAt).toLocaleDateString('es-MX')}` : ''}
+                          {light ? ` · ${light.label}` : ''}
+                        </p>
+                      </div>
+                      {a.comprehension !== null && (
+                        <span className="font-mono text-sm font-bold text-ink-700">{Math.round(a.comprehension)}%</span>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
+              <p className="px-5 py-2 font-body text-[11px] text-ink-400 border-t border-parchment-200">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />75% o más
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-3 mr-1" />50 a 74%
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-3 mr-1" />menos de 50%
+              </p>
             </div>
           )}
         </section>

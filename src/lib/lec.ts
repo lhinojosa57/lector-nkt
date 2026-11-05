@@ -10,6 +10,8 @@ export interface VocabularyItem {
   word: string
   definition: string
   example?: string
+  /** Emoji que ayuda a recordar el concepto (lo elige el docente). */
+  icon?: string
 }
 
 export interface QuestionOption {
@@ -99,6 +101,14 @@ export const LEVELS: { level: number; name: string }[] = [
   { level: 4, name: 'Corresponsal' },
   { level: 5, name: 'Humanista' },
 ]
+
+/** Semáforo de comprensión (criterios de Betts: 75% = nivel adecuado, < 50% = frustración). */
+export type Light = 'green' | 'yellow' | 'red'
+export function comprehensionLight(pct: number): { light: Light; label: string } {
+  if (pct >= 75) return { light: 'green', label: 'Comprendiste muy bien' }
+  if (pct >= 50) return { light: 'yellow', label: 'Vas bien, repasa lo que fallaste' }
+  return { light: 'red', label: 'Vale la pena volver a leerla' }
+}
 
 export function levelName(level: number | null | undefined): string {
   return LEVELS.find(l => l.level === level)?.name ?? '—'

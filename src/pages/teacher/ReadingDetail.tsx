@@ -161,7 +161,7 @@ export default function ReadingDetail() {
                       <ul className="space-y-2">
                         {version.vocabulary.map((v, i) => (
                           <li key={i} className="font-body text-sm">
-                            <span className="font-semibold text-ink-800">{v.word}:</span>{' '}
+                            {v.icon && <span aria-hidden>{v.icon} </span>}<span className="font-semibold text-ink-800">{v.word}:</span>{' '}
                             <span className="text-ink-600">{v.definition}</span>
                           </li>
                         ))}

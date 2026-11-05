@@ -326,10 +326,13 @@ export default function ReadingSession() {
             <p className="font-body text-sm text-ink-500 mb-4">Las vas a encontrar en el texto.</p>
             <ul className="space-y-3">
               {version.vocabulary.map((v, i) => (
-                <li key={i} className="bg-white border border-parchment-200 rounded-lg p-3">
-                  <p className="font-display font-semibold text-ink-900">{v.word}</p>
-                  <p className="font-body text-sm text-ink-600">{v.definition}</p>
-                  {v.example && <p className="font-body text-xs text-ink-400 italic mt-1">{v.example}</p>}
+                <li key={i} className="bg-white border border-parchment-200 rounded-lg p-3 flex items-start gap-3">
+                  {v.icon && <span className="text-3xl leading-none flex-shrink-0 w-10 text-center" aria-hidden>{v.icon}</span>}
+                  <div className="min-w-0">
+                    <p className="font-display font-semibold text-ink-900">{v.word}</p>
+                    <p className="font-body text-sm text-ink-600">{v.definition}</p>
+                    {v.example && <p className="font-body text-xs text-ink-400 italic mt-1">{v.example}</p>}
+                  </div>
                 </li>
               ))}
             </ul>
