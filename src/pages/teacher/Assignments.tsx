@@ -10,6 +10,7 @@ interface Row extends LecAssignment {
   groupNames: string[]
   totalStudents: number
   completed: number
+  started: number
 }
 
 export default function Assignments() {
@@ -56,15 +57,17 @@ export default function Assignments() {
       }
     }
 
-    // Intentos completados por asignación
+    // Intentos por asignación (iniciados y completados)
     const completedBy = new Map<string, Set<string>>()
+    const startedBy = new Map<string, number>()
     if (raw.length) {
       const { data: attempts } = await supabase
         .from('lec_attempts')
-        .select('assignment_id, student_id')
+        .select('assignment_id, student_id, completed_at')
         .in('assignment_id', raw.map(a => a.id))
-        .not('completed_at', 'is', null)
-      for (const at of (attempts ?? []) as { assignment_id: string; student_id: string }[]) {
+      for (const at of (attempts ?? []) as { assignment_id: string; student_id: string; completed_at: string | null }[]) {
+        startedBy.set(at.assignment_id, (startedBy.get(at.assignment_id) ?? 0) + 1)
+        if (!at.completed_at) continue
         const set = completedBy.get(at.assignment_id) ?? new Set<string>()
         set.add(at.student_id)
         completedBy.set(at.assignment_id, set)
@@ -83,6 +86,7 @@ export default function Assignments() {
         groupNames: a.lec_assignment_targets.map(t => t.reading_groups?.name).filter(Boolean) as string[],
         totalStudents: students.size,
         completed: completedBy.get(a.id)?.size ?? 0,
+        started: startedBy.get(a.id) ?? 0,
       }
     }))
     setLoading(false)
@@ -97,6 +101,18 @@ export default function Assignments() {
       return
     }
     setRows(r => r.filter(x => x.id !== id))
+  }
+
+  async function remove(a: Row) {
+    if (a.started > 0) return
+    if (!window.confirm(`¿Eliminar la asignación de "${a.readingTitle}"? Nadie la ha empezado todavía.`)) return
+    const { error } = await supabase.from('lec_assignments').delete().eq('id', a.id)
+    if (error) {
+      console.error(error)
+      setError('No se pudo eliminar la asignación.')
+      return
+    }
+    setRows(r => r.filter(x => x.id !== a.id))
   }
 
   return (
@@ -158,12 +174,23 @@ export default function Assignments() {
                     <p className="font-mono text-lg font-bold text-ink-800">{a.completed}/{a.totalStudents}</p>
                     <p className="font-body text-xs text-ink-500">completaron</p>
                   </div>
-                  <button
-                    onClick={() => setArchived(a.id, !a.archived)}
-                    className="font-body text-xs text-ink-400 hover:text-ink-700"
-                  >
-                    {a.archived ? 'Desarchivar' : 'Archivar'}
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      onClick={() => setArchived(a.id, !a.archived)}
+                      className="font-body text-xs text-ink-400 hover:text-ink-700"
+                    >
+                      {a.archived ? 'Desarchivar' : 'Archivar'}
+                    </button>
+                    {a.started === 0 ? (
+                      <button onClick={() => remove(a)} className="font-body text-xs text-crimson-500 hover:text-crimson-600">
+                        Eliminar
+                      </button>
+                    ) : (
+                      <span className="font-body text-[11px] text-ink-300" title="Ya hay estudiantes que la empezaron; solo se puede archivar.">
+                        Ya iniciada
+                      </span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

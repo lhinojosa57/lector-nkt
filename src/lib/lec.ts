@@ -3,7 +3,7 @@
 
 export type Language = 'es' | 'en'
 export type ReadingStatus = 'draft' | 'published'
-export type ReadingMode = 'aloud' | 'silent' | 'comprehension'
+export type ReadingMode = 'aloud' | 'silent' | 'comprehension' | 'guided'
 export type Skill = 'literal' | 'inferencial' | 'vocabulario' | 'estructura' | 'idea_principal' | 'critica'
 
 export interface VocabularyItem {
@@ -118,6 +118,7 @@ export const MODES: { value: ReadingMode; label: string; description: string }[]
   { value: 'aloud',         label: 'Voz alta',         description: 'Graba 1 minuto leyendo en voz alta y contesta. El docente revisa la grabación.' },
   { value: 'silent',        label: 'En silencio',      description: 'Lee con cronómetro y contesta. Sin grabación ni revisión.' },
   { value: 'comprehension', label: 'Solo comprensión', description: 'Lee sin cronómetro y contesta.' },
+  { value: 'guided',        label: 'Lectura guiada',   description: 'La app marca palabra por palabra y hace pausas en los signos de puntuación. Para practicar el ritmo; no mide velocidad.' },
 ]
 
 export function modeLabel(mode: ReadingMode): string {

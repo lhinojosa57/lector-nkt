@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import AloudRecorder from '@/components/AloudRecorder'
+import GuidedReader from '@/components/GuidedReader'
+import ReadingRuler from '@/components/ReadingRuler'
 import { audioFileName, preloadDrive, requestDriveAccess, uploadAudio } from '@/lib/drive'
 import {
   DEFAULT_LEVEL, SKILL_LABELS, asArray, levelName, modeLabel, pickVersion,
@@ -45,6 +47,7 @@ export default function ReadingSession() {
   const [driveError, setDriveError] = useState('')
   const [upload, setUpload] = useState<UploadState>('idle')
   const audioBlobRef = useRef<Blob | null>(null)
+  const [guidedDone, setGuidedDone] = useState(false)
 
   useEffect(() => {
     if (mode === 'aloud' && AUDIO_UPLOAD_ENABLED) preloadDrive()
@@ -276,7 +279,7 @@ export default function ReadingSession() {
 
             {practiceReadingId && (
               <div className="mt-4 flex gap-2">
-                {(['silent', 'comprehension'] as ReadingMode[]).map(m => (
+                {(['silent', 'comprehension', 'guided'] as ReadingMode[]).map(m => (
                   <button
                     key={m}
                     onClick={() => setMode(m)}
@@ -295,6 +298,7 @@ export default function ReadingSession() {
               {mode === 'aloud' && <p>{version.vocabulary.length ? '2' : '1'}. Lee en voz alta durante 1 minuto mientras te grabas. Lee con calma, como si se lo leyeras a alguien.</p>}
               {mode === 'silent' && <p>{version.vocabulary.length ? '2' : '1'}. Lee el texto completo en silencio. Un cronómetro medirá cuánto tardas.</p>}
               {mode === 'comprehension' && <p>{version.vocabulary.length ? '2' : '1'}. Lee el texto completo a tu ritmo.</p>}
+              {mode === 'guided' && <p>{version.vocabulary.length ? '2' : '1'}. Lee en voz alta siguiendo la palabra marcada y haz una pausa en cada signo de puntuación.</p>}
               <p>{version.vocabulary.length ? '3' : '2'}. Contesta {questions.length} preguntas sobre lo que leíste.</p>
             </div>
 
@@ -364,17 +368,28 @@ export default function ReadingSession() {
 
           <article className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8" {...noCopy}>
             <h2 className="font-display text-2xl font-bold text-ink-900 mb-4">{reading.title}</h2>
-            <div className="font-body text-lg text-ink-800 leading-relaxed whitespace-pre-line">{version.body}</div>
+            {mode === 'guided' ? (
+              <GuidedReader body={version.body} onDone={() => setGuidedDone(true)} />
+            ) : (
+              <ReadingRuler>
+                <div className="font-body text-lg text-ink-800 leading-relaxed whitespace-pre-line">{version.body}</div>
+              </ReadingRuler>
+            )}
           </article>
 
           <button
             onClick={() => goToQuestions(
               mode === 'silent' ? Math.max(1, Math.round((Date.now() - readingStartRef.current) / 1000)) : undefined
             )}
-            disabled={mode === 'aloud' && (audioSeconds === null || (AUDIO_UPLOAD_ENABLED && upload !== 'done'))}
+            disabled={
+              (mode === 'aloud' && (audioSeconds === null || (AUDIO_UPLOAD_ENABLED && upload !== 'done'))) ||
+              (mode === 'guided' && !guidedDone)
+            }
             className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 disabled:opacity-40"
           >
-            {mode === 'aloud' && audioSeconds === null
+            {mode === 'guided' && !guidedDone
+              ? 'Termina la lectura guiada'
+              : mode === 'aloud' && audioSeconds === null
               ? 'Primero graba tu lectura'
               : mode === 'aloud' && upload === 'uploading'
                 ? 'Enviando tu grabación...'

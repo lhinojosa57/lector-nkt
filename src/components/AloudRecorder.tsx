@@ -78,7 +78,13 @@ export default function AloudRecorder({ onDone, uploadEnabled }: Props) {
       {state === 'asking' && <p className="font-body text-sm">Permite el uso del micrófono en la ventana de tu navegador...</p>}
       {state === 'denied' && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-body text-sm">No pudimos usar el micrófono. Revisa que esté conectado y que el navegador tenga permiso.</p>
+          <div className="font-body text-sm space-y-1">
+            <p className="font-semibold">No pudimos usar el micrófono.</p>
+            <p className="text-parchment-200">
+              Revisa que esté conectado. Si el navegador lo bloqueó, toca el ícono a la izquierda de la dirección
+              de la página, permite el micrófono y vuelve a intentar. Si no tienes micrófono, avisa a tu docente.
+            </p>
+          </div>
           <button onClick={startRecording} className="font-body text-sm bg-parchment-50 text-ink-800 px-4 py-2 rounded-lg">Intentar de nuevo</button>
         </div>
       )}
