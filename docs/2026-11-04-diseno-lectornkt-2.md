@@ -49,6 +49,7 @@ Que los estudiantes de Aprende NKT **lean bien y comprendan lo que leen**, y que
 - **Lectura:** un tema o pieza (ej. "Los volcanes de México"). Tiene idioma, materia, temática, tipo de texto, fuente y autor.
 - **Versión:** la misma lectura escrita para un nivel (1 a 5). Una lectura puede tener de 1 a 5 versiones. Cada versión tiene su texto, sus preguntas, su vocabulario y su dato curioso.
 - **Asignación:** el docente manda una lectura a un grupo (o a estudiantes específicos), con un **modo** y fecha límite opcional. Cada estudiante recibe la versión de su nivel (el docente puede forzar otra).
+- **Cualquier lectura publicada se puede asignar o usar en entrenamiento libre.** No hay tipos distintos: una lectura corta puede estar en el entrenamiento libre y además asignarse como tarea a un grupo; una larga normalmente se asigna.
 - **Intento:** cada vez que un estudiante hace una lectura (asignada o libre).
 - **Revisión de fluidez:** la calificación que el docente hace del audio de un intento.
 
@@ -75,15 +76,25 @@ Se asigna al crear la versión. La app **sugiere** el nivel con un índice de le
 
 Ambos van de 0 (muy difícil) a 100 (muy fácil). Tabla **provisional**, a calibrar con los primeros textos reales:
 
-| Nivel | Nombre | Legibilidad sugerida | Extensión aprox. | Preguntas que incluye |
-|---|---|---|---|---|
-| 1 | Escriba | ≥ 70 | 150–250 palabras | Literal, idea principal |
-| 2 | Cronista | 60–69 | 250–350 | + Inferencial |
-| 3 | Intelectual | 50–59 | 350–500 | + Vocabulario en contexto |
-| 4 | Corresponsal | 40–49 | 500–700 | + Estructura del texto |
-| 5 | Humanista | < 40 | 700+ | + Crítica / valoración |
+| Nivel | Nombre | Legibilidad sugerida | Habilidades que suelen incluir las preguntas |
+|---|---|---|---|
+| 1 | Escriba | ≥ 70 | Literal, idea principal |
+| 2 | Cronista | 60–69 | + Inferencial |
+| 3 | Intelectual | 50–59 | + Vocabulario en contexto |
+| 4 | Corresponsal | 40–49 | + Estructura del texto |
+| 5 | Humanista | < 40 | + Crítica / valoración |
 
 El índice solo mide largo de palabras y oraciones, no la dificultad de las ideas. Por eso el docente tiene la última palabra.
+
+**El nivel lo da la dificultad, no la extensión** (decisión 2026-11-05). Un texto de 2,500 palabras sencillo puede ser nivel 2. La extensión se muestra solo como dato.
+
+### 4.1.1 Extensión y número de preguntas
+
+- **Libres para cada docente.** Hay docentes que hoy asignan lecturas de 2,000 a 3,000 palabras con 8 a 10 preguntas; eso cabe tal cual.
+- **Lectura corta de entrenamiento** (referencia, no límite): unas 200 a 700 palabras y 3 a 5 preguntas, para el entrenamiento libre y para asignar como práctica breve.
+- **Lecturas largas:**
+  - En voz alta se graba solo **el primer minuto** (así se mide la fluidez y el docente no escucha 20 minutos por estudiante); el resto se lee en silencio.
+  - Pueden tomar 15 a 20 minutos más las preguntas, así que la Fase 2a agrega **guardar el avance** (en qué paso y qué preguntas ya contestó) para que el estudiante pueda salir y retomar.
 
 ### 4.2 Nivel del estudiante
 
@@ -118,7 +129,7 @@ Como en un mismo grado hay estudiantes que leen muy distinto, el diagnóstico es
 Lista de lecturas con filtros: idioma, materia, temática, nivel, autor, estado (borrador / publicada). Cada fila muestra qué niveles tiene versión (●●●○○).
 
 ### 5.2 Crear lectura
-- **Fase 2a, manual:** formulario con título, idioma, materia, temática, tipo de texto, fuente. Luego, por versión: texto, preguntas (opción múltiple con explicación, marcando la habilidad), vocabulario y dato curioso. La app calcula conteo de palabras y legibilidad, y sugiere el nivel.
+- **Fase 2a, manual:** formulario con título, idioma, materia, temática, tipo de texto, fuente. Luego, por versión: texto, preguntas (las que el docente quiera) (opción múltiple con explicación, marcando la habilidad), vocabulario y dato curioso. La app calcula conteo de palabras y legibilidad, y sugiere el nivel.
 - **Fase 2b, con IA:** el docente da un tema o pega un texto propio o de dominio público, elige idioma, materia y niveles deseados. La IA propone las versiones con sus preguntas. **Todo queda en borrador hasta que el docente revisa, edita y publica.** Si el texto parte de una noticia, la IA redacta un texto original a partir de los hechos, no adapta el artículo completo. Los datos se verifican antes de publicar.
 
 Las lecturas publicadas las ven todos los docentes de Aprende NKT, para que se acumule un banco común.
@@ -255,6 +266,8 @@ Hotmart / NKT 12·15, cuentas fuera de @nikolatesla.edu.mx, AmoxtliNKT (náhuatl
 6. **Consentimiento:** por correo institucional + pantalla en la app (sección 8).
 
 7. **Sin CURP** en el consentimiento.
+8. **(2026-11-05) Extensión y preguntas libres:** el nivel lo da la dificultad, no el largo; cada docente decide extensión y número de preguntas (ver 4.1.1). Cualquier lectura se puede asignar o usar en entrenamiento libre.
+9. **(2026-11-05) Durante la lectura y las preguntas** no se puede seleccionar ni copiar el texto; en las preguntas ya no se puede volver a ver el texto; el botón "Terminé de leer" va al final del texto.
 
 ### Pendientes
 - **Crear el grupo de Google de docentes de Aprende NKT** (no existe todavía); los audios se comparten con ese grupo.
