@@ -37,6 +37,11 @@ export default function ReadingSession() {
   const [readingSeconds, setReadingSeconds] = useState<number | null>(null)
   const [audioSeconds, setAudioSeconds] = useState<number | null>(null)
   const [comprehension, setComprehension] = useState<number | null>(null)
+  const readingStartRef = useRef(0)
+
+  useEffect(() => {
+    if (step === 'reading') readingStartRef.current = Date.now()
+  }, [step])
 
   useEffect(() => {
     if (!profile?.id) return
@@ -299,22 +304,22 @@ export default function ReadingSession() {
               uploadEnabled={AUDIO_UPLOAD_ENABLED}
             />
           )}
-          {mode === 'silent' && <SilentTimer onFinish={(s) => goToQuestions(s)} />}
+          {mode === 'silent' && <SilentTimer startRef={readingStartRef} />}
 
           <article className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8" {...noCopy}>
             <h2 className="font-display text-2xl font-bold text-ink-900 mb-4">{reading.title}</h2>
             <div className="font-body text-lg text-ink-800 leading-relaxed whitespace-pre-line">{version.body}</div>
           </article>
 
-          {mode !== 'silent' && (
-            <button
-              onClick={() => goToQuestions()}
-              disabled={mode === 'aloud' && audioSeconds === null}
-              className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 disabled:opacity-40"
-            >
-              {mode === 'aloud' && audioSeconds === null ? 'Primero graba tu lectura' : 'Ir a las preguntas →'}
-            </button>
-          )}
+          <button
+            onClick={() => goToQuestions(
+              mode === 'silent' ? Math.max(1, Math.round((Date.now() - readingStartRef.current) / 1000)) : undefined
+            )}
+            disabled={mode === 'aloud' && audioSeconds === null}
+            className="w-full bg-teal-600 text-white font-body font-semibold py-3 rounded-xl hover:bg-teal-500 disabled:opacity-40"
+          >
+            {mode === 'aloud' && audioSeconds === null ? 'Primero graba tu lectura' : 'Terminé de leer →'}
+          </button>
         </div>
       </div>
     )
@@ -327,7 +332,6 @@ export default function ReadingSession() {
         <QuestionsStep
           attemptId={attemptId!}
           questions={questions}
-          body={version.body}
           onFinish={finish}
         />
       </div>
@@ -376,15 +380,13 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-6 w-full max-w-xl">{children}</div>
 }
 
-function SilentTimer({ onFinish }: { onFinish: (seconds: number) => void }) {
-  const startRef = useRef(0)
+function SilentTimer({ startRef }: { startRef: React.RefObject<number> }) {
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
-    startRef.current = Date.now()
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [startRef])
 
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
   const ss = String(elapsed % 60).padStart(2, '0')
@@ -392,20 +394,14 @@ function SilentTimer({ onFinish }: { onFinish: (seconds: number) => void }) {
   return (
     <div className="sticky top-0 z-10 bg-ink-800 text-parchment-50 rounded-xl px-5 py-3 flex items-center justify-between">
       <span className="font-mono text-xl">{mm}:{ss}</span>
-      <button
-        onClick={() => onFinish(Math.max(1, Math.round((Date.now() - startRef.current) / 1000)))}
-        className="font-body text-sm bg-teal-500 hover:bg-teal-400 px-4 py-2 rounded-lg"
-      >
-        Terminé de leer
-      </button>
+      <span className="font-body text-xs text-parchment-300">Al terminar, presiona el botón de abajo</span>
     </div>
   )
 }
 
-function QuestionsStep({ attemptId, questions, body, onFinish }: {
+function QuestionsStep({ attemptId, questions, onFinish }: {
   attemptId: string
   questions: PublicQuestion[]
-  body: string
   onFinish: (pct: number | null) => void
 }) {
   const [index, setIndex] = useState(0)
@@ -414,7 +410,6 @@ function QuestionsStep({ attemptId, questions, body, onFinish }: {
   const [correctCount, setCorrectCount] = useState(0)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState('')
-  const [showText, setShowText] = useState(false)
 
   const q = questions[index]
 
@@ -455,7 +450,7 @@ function QuestionsStep({ attemptId, questions, body, onFinish }: {
         <span className="font-body text-xs px-2 py-1 rounded-full bg-parchment-200 text-ink-600">{SKILL_LABELS[q.skill]}</span>
       </div>
 
-      <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5" style={{ userSelect: 'none' }}>
+      <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5" {...noCopy}>
         <p className="font-display text-lg font-bold text-ink-900 mb-4 leading-snug">{q.text}</p>
         <div className="space-y-2">
           {q.options.map(opt => {
@@ -503,14 +498,6 @@ function QuestionsStep({ attemptId, questions, body, onFinish }: {
         </button>
       )}
 
-      <button onClick={() => setShowText(s => !s)} className="w-full font-body text-xs text-ink-500 hover:text-ink-700">
-        {showText ? 'Ocultar el texto' : 'Volver a ver el texto'}
-      </button>
-      {showText && (
-        <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 font-body text-ink-800 leading-relaxed whitespace-pre-line" {...noCopy}>
-          {body}
-        </div>
-      )}
     </div>
   )
 }
