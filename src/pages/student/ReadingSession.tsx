@@ -301,7 +301,7 @@ export default function ReadingSession() {
           )}
           {mode === 'silent' && <SilentTimer onFinish={(s) => goToQuestions(s)} />}
 
-          <article className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8">
+          <article className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 sm:p-8" {...noCopy}>
             <h2 className="font-display text-2xl font-bold text-ink-900 mb-4">{reading.title}</h2>
             <div className="font-body text-lg text-ink-800 leading-relaxed whitespace-pre-line">{version.body}</div>
           </article>
@@ -354,6 +354,19 @@ export default function ReadingSession() {
 }
 
 // ---------------- Componentes internos ----------------
+
+/** Evita seleccionar, copiar, arrastrar o abrir el menú del botón derecho sobre el texto. */
+const blockEvent = (e: React.SyntheticEvent) => e.preventDefault()
+const noCopy = {
+  style: { userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties,
+  onCopy: blockEvent,
+  onCut: blockEvent,
+  onContextMenu: blockEvent,
+  onDragStart: blockEvent,
+}
+
+/** Más rápido que esto no es lectura real en secundaria; no mostramos el número. */
+const MAX_PLAUSIBLE_WPM = 400
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen bg-sepia-100 flex items-center justify-center p-4">{children}</div>
@@ -494,7 +507,7 @@ function QuestionsStep({ attemptId, questions, body, onFinish }: {
         {showText ? 'Ocultar el texto' : 'Volver a ver el texto'}
       </button>
       {showText && (
-        <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 font-body text-ink-800 leading-relaxed whitespace-pre-line">
+        <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 font-body text-ink-800 leading-relaxed whitespace-pre-line" {...noCopy}>
           {body}
         </div>
       )}
@@ -526,7 +539,9 @@ function CloseStep({ attemptId, comprehension, readingSeconds, wordCount, curios
     }, 1200)
   }
 
-  const wpm = readingSeconds ? Math.round((wordCount / readingSeconds) * 60) : null
+  const rawWpm = readingSeconds ? Math.round((wordCount / readingSeconds) * 60) : null
+  const tooFast = rawWpm !== null && rawWpm > MAX_PLAUSIBLE_WPM
+  const wpm = tooFast ? null : rawWpm
 
   return (
     <div className="space-y-4">
@@ -542,6 +557,11 @@ function CloseStep({ attemptId, comprehension, readingSeconds, wordCount, curios
             <p className="font-body text-xs text-ink-500">{wpm ? 'palabras por minuto (aprox.)' : 'velocidad'}</p>
           </div>
         </div>
+        {tooFast && (
+          <p className="mt-4 font-body text-sm text-ink-600">
+            Terminaste demasiado rápido para medir tu velocidad. La próxima vez lee el texto completo con calma y luego presiona "Terminé de leer".
+          </p>
+        )}
         {aloud && (
           <p className="mt-4 font-body text-sm text-ink-600">
             {AUDIO_UPLOAD_ENABLED
