@@ -14,6 +14,8 @@ import Assignments from '@/pages/teacher/Assignments'
 import StudentLibrary from '@/pages/student/StudentLibrary'
 import ReadingSession from '@/pages/student/ReadingSession'
 import ConsentPage from '@/pages/student/ConsentPage'
+import FluencyQueue from '@/pages/teacher/FluencyQueue'
+import FluencyReview from '@/pages/teacher/FluencyReview'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const { user, profile, loading } = useAuth()
@@ -61,6 +63,18 @@ export default function App() {
       <Route path="/teacher" element={
         <ProtectedRoute role="teacher">
           <TeacherDashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/fluency" element={
+        <ProtectedRoute role="teacher">
+          <FluencyQueue />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/fluency/:attemptId" element={
+        <ProtectedRoute role="teacher">
+          <FluencyReview />
         </ProtectedRoute>
       } />
 

@@ -15,6 +15,7 @@ interface AssignmentRow extends LecAssignment {
   completed: boolean
   comprehension: number | null
   completedAt: string | null
+  fluency: { wcpm: number; accuracy_pct: number; comment: string | null } | null
 }
 
 const LIGHT_DOT: Record<Light, string> = {
@@ -55,7 +56,7 @@ export default function StudentDashboard() {
           .order('created_at', { ascending: false }),
         supabase
           .from('lec_attempts')
-          .select('assignment_id, comprehension_pct, completed_at')
+          .select('assignment_id, comprehension_pct, completed_at, lec_fluency_reviews(wcpm, accuracy_pct, comment)')
           .eq('student_id', studentId)
           .not('assignment_id', 'is', null)
           .not('completed_at', 'is', null),
@@ -64,9 +65,11 @@ export default function StudentDashboard() {
       ])
       if (cancelled) return
 
-      const done = new Map<string, { pct: number | null; at: string }>()
-      for (const a of (attemptsRes.data ?? []) as { assignment_id: string; comprehension_pct: number | null; completed_at: string }[]) {
-        done.set(a.assignment_id, { pct: a.comprehension_pct, at: a.completed_at })
+      type Fl = { wcpm: number; accuracy_pct: number; comment: string | null }
+      const done = new Map<string, { pct: number | null; at: string; fluency: Fl | null }>()
+      for (const a of (attemptsRes.data ?? []) as unknown as { assignment_id: string; comprehension_pct: number | null; completed_at: string; lec_fluency_reviews: Fl | Fl[] | null }[]) {
+        const f = Array.isArray(a.lec_fluency_reviews) ? a.lec_fluency_reviews[0] ?? null : a.lec_fluency_reviews
+        done.set(a.assignment_id, { pct: a.comprehension_pct, at: a.completed_at, fluency: f })
       }
 
       type Raw = LecAssignment & { lec_readings: { title: string; language: Language; subject: string } | null }
@@ -80,6 +83,7 @@ export default function StudentDashboard() {
           completed: done.has(a.id),
           comprehension: done.get(a.id)?.pct ?? null,
           completedAt: done.get(a.id)?.at ?? null,
+          fluency: done.get(a.id)?.fluency ?? null,
         }))
         // Pendientes primero, luego por fecha límite
         .sort((a, b) => Number(a.completed) - Number(b.completed) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
@@ -245,6 +249,16 @@ export default function StudentDashboard() {
                           {a.subject} · {modeLabel(a.mode)}{a.completedAt ? ` · ${new Date(a.completedAt).toLocaleDateString('es-MX')}` : ''}
                           {light ? ` · ${light.label}` : ''}
                         </p>
+                        {a.mode === 'aloud' && (
+                          <p className="font-body text-xs text-ink-700 mt-0.5">
+                            {a.fluency
+                              ? <>Fluidez: <strong>{Math.round(a.fluency.wcpm)}</strong> palabras correctas por minuto · {a.fluency.accuracy_pct}% de precisión</>
+                              : 'Tu docente todavía no revisa tu grabación.'}
+                          </p>
+                        )}
+                        {a.fluency?.comment && (
+                          <p className="font-body text-xs text-ink-600 italic mt-0.5">Tu docente: “{a.fluency.comment}”</p>
+                        )}
                       </div>
                       {a.comprehension !== null && (
                         <span className="font-mono text-sm font-bold text-ink-700">{Math.round(a.comprehension)}%</span>

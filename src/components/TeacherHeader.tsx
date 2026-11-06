@@ -5,6 +5,7 @@ const LINKS = [
   { to: '/teacher', label: 'Estudiantes', end: true },
   { to: '/teacher/library', label: 'Biblioteca', end: false },
   { to: '/teacher/assignments', label: 'Asignaciones', end: false },
+  { to: '/teacher/fluency', label: 'Fluidez', end: false },
   { to: '/teacher/groups', label: 'Grupos', end: false },
 ]
 
