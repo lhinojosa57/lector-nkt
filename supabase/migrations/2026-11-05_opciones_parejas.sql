@@ -99,3 +99,22 @@ from (
          as es_mas_larga
   from public.lec_questions q
 ) t;
+
+-- Ajuste final (empates detectados al verificar)
+update public.lec_questions q
+set options = (
+  select jsonb_agg(
+    case
+      when r.title = 'El idioma que hablan más personas en el mundo' and q.position = 2 and o->>'id' = 'b'
+        then o || jsonb_build_object('text', 'El mandarín destaca por sus hablantes, su escritura y su larga historia')
+      when r.title = 'Los científicos que nunca firmaron un consentimiento' and q.position = 0 and o->>'id' = 'c'
+        then o || jsonb_build_object('text', 'Entre 200 y 500 millones')
+      else o
+    end order by ord)
+  from jsonb_array_elements(q.options) with ordinality as x(o, ord)
+)
+from public.lec_versions v
+join public.lec_readings r on r.id = v.reading_id
+where v.id = q.version_id
+  and ((r.title = 'El idioma que hablan más personas en el mundo' and q.position = 2)
+    or (r.title = 'Los científicos que nunca firmaron un consentimiento' and q.position = 0));
