@@ -136,7 +136,8 @@ export default function ReadingSession() {
       if (cancelled) return
       setReading(lecReading)
       setVersion({ ...chosen, vocabulary: asArray<VocabularyItem>(chosen.vocabulary) })
-      setQuestions(((qs ?? []) as PublicQuestion[]).map(q => ({ ...q, options: asArray<QuestionOption>(q.options) })))
+      // El orden de las opciones se revuelve para que la posición no dé pistas (se califica por id en el servidor)
+      setQuestions(((qs ?? []) as PublicQuestion[]).map(q => ({ ...q, options: shuffle(asArray<QuestionOption>(q.options)) })))
       setMode(effectiveMode)
       setModeNotice(notice)
       setTtsAllowed(!!acc?.tts)
@@ -478,6 +479,15 @@ export default function ReadingSession() {
 }
 
 // ---------------- Componentes internos ----------------
+
+function shuffle<T>(items: T[]): T[] {
+  const a = [...items]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 
 /** Evita seleccionar, copiar, arrastrar o abrir el menú del botón derecho sobre el texto. */
 const blockEvent = (e: React.SyntheticEvent) => e.preventDefault()
