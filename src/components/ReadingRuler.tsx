@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 const STORAGE_KEY = 'lectornkt-regla'
 
@@ -9,6 +9,33 @@ function writePref(on: boolean) {
   try { localStorage.setItem(STORAGE_KEY, on ? '1' : '0') } catch { /* sin almacenamiento */ }
 }
 
+interface Line { top: number; height: number }
+
+/**
+ * Lee los renglones reales del texto (como los dibujó el navegador), para que la
+ * regla caiga exacto en cada renglón con cualquier tamaño de letra o espaciado.
+ */
+function measureLines(box: HTMLElement): Line[] {
+  const range = document.createRange()
+  range.selectNodeContents(box)
+  const boxTop = box.getBoundingClientRect().top
+  const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1)
+  const lines: Line[] = []
+  for (const r of rects) {
+    const top = r.top - boxTop
+    const last = lines[lines.length - 1]
+    if (last && Math.abs(last.top - top) < r.height / 2) {
+      // mismo renglón: ampliar
+      const bottom = Math.max(last.top + last.height, top + r.height)
+      last.top = Math.min(last.top, top)
+      last.height = bottom - last.top
+    } else {
+      lines.push({ top, height: r.height })
+    }
+  }
+  return lines.sort((a, b) => a.top - b.top)
+}
+
 /**
  * Regla de lectura: una franja que resalta el renglón donde va el estudiante
  * y atenúa el resto. Se mueve con el mouse, tocando el renglón o con las flechas ↑ ↓.
@@ -16,51 +43,61 @@ function writePref(on: boolean) {
  */
 export default function ReadingRuler({ children }: { children: ReactNode }) {
   const [on, setOn] = useState(readPref)
-  const [line, setLine] = useState(0)
-  const [metrics, setMetrics] = useState({ lh: 29, lines: 1 })
+  const [lineIdx, setLineIdx] = useState(0)
+  const [lines, setLines] = useState<Line[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
+
+  const measure = useCallback(() => {
+    if (boxRef.current) setLines(measureLines(boxRef.current))
+  }, [])
 
   useEffect(() => {
     const el = boxRef.current
     if (!el) return
-    const measure = () => {
-      const lh = parseFloat(getComputedStyle(el).lineHeight) || 29
-      setMetrics({ lh, lines: Math.max(1, Math.round(el.scrollHeight / lh)) })
-    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    document.fonts?.ready.then(measure).catch(() => {})
     return () => ro.disconnect()
-  }, [])
+  }, [measure, on])
 
   useEffect(() => {
     if (!on) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setLine(l => Math.min(metrics.lines - 1, l + 1)) }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setLine(l => Math.max(0, l - 1)) }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setLineIdx(l => Math.min(lines.length - 1, l + 1)) }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setLineIdx(l => Math.max(0, l - 1)) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [on, metrics.lines])
+  }, [on, lines.length])
 
   function moveTo(clientY: number) {
     const el = boxRef.current
-    if (!el || !on) return
+    if (!el || !on || lines.length === 0) return
     const y = clientY - el.getBoundingClientRect().top
-    setLine(Math.max(0, Math.min(metrics.lines - 1, Math.floor(y / metrics.lh))))
+    let best = 0
+    let bestDist = Infinity
+    lines.forEach((ln, i) => {
+      const d = Math.abs(ln.top + ln.height / 2 - y)
+      if (d < bestDist) { bestDist = d; best = i }
+    })
+    setLineIdx(best)
   }
 
   function toggle() {
     setOn(v => { writePref(!v); return !v })
   }
 
-  const top = line * metrics.lh
+  const current = lines[Math.min(lineIdx, lines.length - 1)]
+  const pad = 4
 
   return (
     <div>
       <div className="flex justify-end mb-2">
         <button
           onClick={toggle}
+          aria-pressed={on}
           className={`font-body text-xs px-3 py-1.5 rounded-lg border ${
             on ? 'bg-gold-300/40 border-gold-400 text-ink-800' : 'border-parchment-300 text-ink-500 hover:bg-parchment-100'
           }`}
@@ -76,21 +113,24 @@ export default function ReadingRuler({ children }: { children: ReactNode }) {
         onTouchStart={e => moveTo(e.touches[0].clientY)}
       >
         {children}
-        {on && (
+        {on && current && (
           <>
-            <div className="pointer-events-none absolute inset-x-[-8px] top-0 bg-parchment-50/70" style={{ height: top }} />
+            <div
+              className="pointer-events-none absolute inset-x-[-8px] top-0 bg-parchment-50/70"
+              style={{ height: Math.max(0, current.top - pad) }}
+            />
             <div
               className="pointer-events-none absolute inset-x-[-8px] rounded border-y-2 border-gold-400 bg-gold-300/20"
-              style={{ top, height: metrics.lh }}
+              style={{ top: current.top - pad, height: current.height + pad * 2 }}
             />
             <div
               className="pointer-events-none absolute inset-x-[-8px] bottom-0 bg-parchment-50/70"
-              style={{ top: top + metrics.lh }}
+              style={{ top: current.top + current.height + pad }}
             />
           </>
         )}
       </div>
-      {on && <p className="mt-2 font-body text-[11px] text-ink-400">Mueve la regla con el mouse, tocando el renglón o con las flechas ↑ ↓ del teclado.</p>}
+      {on && <p className="mt-2 font-body text-[11px] text-ink-500">Mueve la regla con el mouse, tocando el renglón o con las flechas ↑ ↓ del teclado.</p>}
     </div>
   )
 }
