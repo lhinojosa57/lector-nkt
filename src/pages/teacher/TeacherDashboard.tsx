@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import TeacherHeader from '@/components/TeacherHeader'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 
@@ -32,8 +32,7 @@ const LEVEL_COLORS: Record<string, string> = {
 }
 
 export default function TeacherDashboard() {
-  const { profile, signOut } = useAuth()
-  const navigate = useNavigate()
+  const { profile } = useAuth()
   const [students, setStudents] = useState<StudentProgress[]>([])
   const [loading, setLoading] = useState(true)
   const today = new Date().toISOString().split('T')[0]
@@ -99,35 +98,7 @@ export default function TeacherDashboard() {
   return (
     <div className="min-h-screen bg-sepia-100">
 
-      {/* Header */}
-      <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-xl font-bold text-ink-900">
-              LectorNKT — Panel docente
-            </h1>
-            <p className="font-body text-xs text-ink-500 mt-0.5">
-              {profile?.full_name ?? profile?.email}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/teacher/groups')}
-              className="font-body text-xs border border-parchment-300 text-ink-600 px-4 py-2 rounded-lg hover:bg-parchment-100 transition-colors"
-            >
-              Grupos
-            </button>
-           
-            <button
-              onClick={signOut}
-              className="font-body text-xs text-ink-400 hover:text-ink-600 transition-colors"
-            >
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
-      </div>
+      <TeacherHeader title="LectorNKT — Panel docente" />
 
       <div className="max-w-5xl mx-auto p-6 space-y-4">
 

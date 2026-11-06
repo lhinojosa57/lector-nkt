@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Plus, Users, Copy, Check, X, Edit2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import TeacherHeader from '@/components/TeacherHeader'
 
 interface Group {
   id: string
@@ -24,7 +24,6 @@ const MODALIDADES = ['Presencial', 'Virtual', 'Online']
 
 export default function TeacherGroupsLector() {
   const { profile } = useAuth()
-  const navigate = useNavigate()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -33,6 +32,7 @@ export default function TeacherGroupsLector() {
   const [saving, setSaving] = useState(false)
   const [editingGroup, setEditingGroup] = useState<string | null>(null)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [ttsByStudent, setTtsByStudent] = useState<Record<string, boolean>>({})
   const [groupMembers, setGroupMembers] = useState<Record<string, {id: string, full_name: string, email: string, diagnostic_wpm: number | null}[]>>({})
 
   const [form, setForm] = useState({
@@ -142,6 +142,17 @@ export default function TeacherGroupsLector() {
     .select('id, full_name, email')
     .in('id', studentIds)
 
+  // Apoyos activados (lectura en voz de la app)
+  const { data: acc } = await supabase
+    .from('lec_accommodations')
+    .select('student_id, tts')
+    .in('student_id', studentIds)
+  setTtsByStudent(prev => {
+    const next = { ...prev }
+    for (const a of (acc ?? []) as { student_id: string; tts: boolean }[]) next[a.student_id] = a.tts
+    return next
+  })
+
   // Query 3: progreso
   const { data: progress } = await supabase
     .from('student_reading_progress')
@@ -159,6 +170,22 @@ export default function TeacherGroupsLector() {
   setGroupMembers(prev => ({ ...prev, [groupId]: result }))
 }
 
+  async function toggleTts(studentId: string) {
+    const value = !ttsByStudent[studentId]
+    setTtsByStudent(prev => ({ ...prev, [studentId]: value }))
+    const { error } = await supabase.from('lec_accommodations').upsert({
+      student_id: studentId,
+      tts: value,
+      updated_by: profile?.id ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) {
+      console.error(error)
+      setTtsByStudent(prev => ({ ...prev, [studentId]: !value }))
+      alert('No se pudo guardar el apoyo. Inténtalo de nuevo.')
+    }
+  }
+
   const filtered = showArchived ? groups.filter(g => g.archived) : groups.filter(g => !g.archived)
 
   if (loading) return (
@@ -169,32 +196,19 @@ export default function TeacherGroupsLector() {
 
   return (
     <div className="min-h-screen bg-sepia-100">
-      <div className="bg-parchment-50 border-b border-parchment-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <button
-              onClick={() => navigate('/teacher')}
-              className="font-body text-xs text-ink-400 hover:text-ink-600 transition-colors flex items-center gap-1 mb-1"
-            >
-              ← Panel docente
-            </button>
-            <h1 className="font-display text-xl font-bold text-ink-900">Grupos</h1>
-            <p className="font-body text-xs text-ink-500 mt-0.5">Organiza tus estudiantes por grupo</p>
-          </div>
+      <TeacherHeader title="Grupos" />
+
+      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+
+        {/* Toggle archivados + nuevo grupo */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg font-body text-sm font-medium hover:bg-teal-500 transition-colors"
+            className="order-last sm:ml-auto flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg font-body text-sm font-medium hover:bg-teal-500 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Nuevo grupo
           </button>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto p-6">
-
-        {/* Toggle archivados */}
-        <div className="flex gap-3 mb-6">
           <button
             onClick={() => setShowArchived(false)}
             className={`font-body text-sm px-4 py-2 rounded-lg transition-colors ${!showArchived ? 'bg-teal-600 text-white' : 'bg-parchment-50 text-ink-600 border border-parchment-200'}`}
@@ -253,7 +267,7 @@ export default function TeacherGroupsLector() {
                     <button onClick={() => handleOpenEdit(group)} className="text-ink-400 hover:text-teal-600 transition-colors p-1.5">
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleArchive(group.id, group.archived)} className="text-ink-300 hover:text-teal-600 transition-colors p-1.5" title={group.archived ? 'Desarchivar' : 'Archivar'}>
+                    <button onClick={() => handleArchive(group.id, group.archived)} className="text-ink-400 hover:text-teal-600 transition-colors p-1.5" title={group.archived ? 'Desarchivar' : 'Archivar'}>
                       {group.archived ? '📂' : '📁'}
                     </button>
                   </div>
@@ -303,6 +317,18 @@ export default function TeacherGroupsLector() {
                             <p className="font-body text-sm text-ink-800 truncate">{m.full_name}</p>
                             <p className="font-body text-xs text-ink-400 truncate">{m.email}</p>
                           </div>
+                          <label
+                            className="flex items-center gap-1.5 font-body text-xs text-ink-600 flex-shrink-0 cursor-pointer"
+                            title="La app le puede leer en voz alta el texto, las palabras clave y las preguntas (nunca en Voz alta ni Lectura guiada)."
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!ttsByStudent[m.id]}
+                              onChange={() => toggleTts(m.id)}
+                              aria-label={`Lectura en voz de la app para ${m.full_name}`}
+                            />
+                            <span aria-hidden>🔊</span> Voz de la app
+                          </label>
                           <div className="text-right flex-shrink-0">
                             {m.diagnostic_wpm ? (
                               <p className="font-mono text-sm font-bold text-amber-500">{m.diagnostic_wpm} wpm</p>
@@ -323,8 +349,8 @@ export default function TeacherGroupsLector() {
       </div>
 
       {showModal && (
-        <div style={{ minHeight: '100vh', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200">
+        <div className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4">
+          <div className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-parchment-200">
               <h2 className="font-display text-lg font-semibold text-ink-800">
                 {editingGroup ? 'Editar grupo' : 'Nuevo grupo'}
@@ -340,7 +366,7 @@ export default function TeacherGroupsLector() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="ej. Lectores Virtuales 2°"
-                  className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:outline-none focus:border-teal-400"
+                  className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:border-teal-400"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -349,7 +375,7 @@ export default function TeacherGroupsLector() {
                   <select
                     value={form.grado}
                     onChange={e => setForm(f => ({ ...f, grado: e.target.value }))}
-                    className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:outline-none focus:border-teal-400"
+                    className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:border-teal-400"
                   >
                     <option value="">Seleccionar…</option>
                     {GRADOS.map(g => <option key={g} value={g}>{g}</option>)}
@@ -360,7 +386,7 @@ export default function TeacherGroupsLector() {
                   <select
                     value={form.modalidad}
                     onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}
-                    className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:outline-none focus:border-teal-400"
+                    className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:border-teal-400"
                   >
                     {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -372,7 +398,7 @@ export default function TeacherGroupsLector() {
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   rows={2}
-                  className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:outline-none focus:border-teal-400 resize-none"
+                  className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-body text-sm text-ink-800 bg-white focus:border-teal-400 resize-none"
                 />
               </div>
             </div>
