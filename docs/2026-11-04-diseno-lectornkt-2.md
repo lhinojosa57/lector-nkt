@@ -267,6 +267,7 @@ Hotmart / NKT 12·15, cuentas fuera de @nikolatesla.edu.mx, AmoxtliNKT (náhuatl
 
 7. **Sin CURP** en el consentimiento.
 8. **(2026-11-05) Extensión y preguntas libres:** el nivel lo da la dificultad, no el largo; cada docente decide extensión y número de preguntas (ver 4.1.1). Cualquier lectura se puede asignar o usar en entrenamiento libre.
+10. **(2026-11-05) Opciones de respuesta de longitud pareja:** la correcta nunca debe ser la más larga (ni la más corta) de forma sistemática; los distractores deben ser plausibles y de extensión similar. El editor (2a) avisará cuando la correcta sea notablemente más larga, y el generador con IA (2b) lo tendrá como regla.
 9. **(2026-11-05) Durante la lectura y las preguntas** no se puede seleccionar ni copiar el texto; en las preguntas ya no se puede volver a ver el texto; el botón "Terminé de leer" va al final del texto.
 
 ### Pendientes
