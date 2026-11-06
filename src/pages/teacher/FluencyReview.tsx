@@ -190,7 +190,7 @@ export default function FluencyReview() {
               <iframe
                 title="Grabación del estudiante"
                 src={`https://drive.google.com/file/d/${data.driveFileId}/preview`}
-                className="w-full h-20 rounded-lg border border-parchment-200 bg-white"
+                className="w-full h-[120px] rounded-lg border border-parchment-200 bg-white"
                 allow="autoplay"
               />
               <p className="font-body text-xs text-ink-500">
