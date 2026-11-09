@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import AssignModal from '@/components/AssignModal'
+import CoverPanel from '@/components/CoverPanel'
 import {
   LANGUAGES, SKILL_LABELS, asArray, levelName,
   type LecQuestion, type LecReading, type LecVersion, type QuestionOption, type VocabularyItem,
@@ -87,7 +88,8 @@ export default function ReadingDetail() {
         </button>
 
         <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <CoverPanel reading={reading} onChange={cover_path => setReading({ ...reading, cover_path })} />
+          <div className="flex-1 min-w-[220px]">
             <h2 className="font-display text-2xl font-bold text-ink-900">{reading.title}</h2>
             <p className="font-body text-sm text-ink-500 mt-1">
               Materia: {reading.subject} · Idioma: {LANGUAGES.find(l => l.value === reading.language)?.label.toLowerCase()}
