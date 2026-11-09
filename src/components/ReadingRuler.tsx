@@ -16,10 +16,20 @@ interface Line { top: number; height: number }
  * regla caiga exacto en cada renglón con cualquier tamaño de letra o espaciado.
  */
 function measureLines(box: HTMLElement): Line[] {
-  const range = document.createRange()
-  range.selectNodeContents(box)
+  // Solo nodos de texto: si se mide el contenedor completo, el navegador también
+  // devuelve el rectángulo de los bloques (párrafos), que se "come" el primer renglón.
   const boxTop = box.getBoundingClientRect().top
-  const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1)
+  const range = document.createRange()
+  const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT)
+  const rects: DOMRect[] = []
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent?.trim()) continue
+    range.selectNodeContents(n)
+    for (const r of Array.from(range.getClientRects())) {
+      if (r.width > 1 && r.height > 1) rects.push(r)
+    }
+  }
+  rects.sort((a, b) => a.top - b.top)
   const lines: Line[] = []
   for (const r of rects) {
     const top = r.top - boxTop
