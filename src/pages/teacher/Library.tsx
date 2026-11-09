@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
+import ReadingCover from '@/components/ReadingCover'
 import { LANGUAGES, LEVELS, SUBJECTS, type LecReading, type Language } from '@/lib/lec'
 
 interface Row extends LecReading {
@@ -103,6 +104,7 @@ export default function Library() {
                     onClick={() => navigate(`/teacher/library/${r.id}`)}
                     className="w-full text-left px-5 py-4 hover:bg-parchment-100 transition-colors flex flex-wrap items-center gap-3"
                   >
+                    <ReadingCover size="sm" title={r.title} subject={r.subject} coverPath={r.cover_path} />
                     <div className="flex-1 min-w-[200px]">
                       <p className="font-display font-semibold text-ink-900">{r.title}</p>
                       <p className="font-body text-xs text-ink-500 mt-0.5">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { DEFAULT_LEVEL, SUBJECTS, type Language, type LecReading } from '@/lib/lec'
+import ReadingCover from '@/components/ReadingCover'
 
 interface Row extends LecReading {
   levels: number[]
@@ -92,10 +93,13 @@ export default function StudentLibrary() {
                 <li key={r.id}>
                   <button
                     onClick={() => navigate(`/student/practice/${r.id}`)}
-                    className="w-full text-left px-5 py-4 hover:bg-parchment-100 transition-colors"
+                    className="w-full text-left px-5 py-4 hover:bg-parchment-100 transition-colors flex items-center gap-3"
                   >
-                    <p className="font-display font-semibold text-ink-900">{r.title}</p>
-                    <p className="font-body text-xs text-ink-500 mt-0.5">{r.subject}{r.topic ? ` · ${r.topic}` : ''}</p>
+                    <ReadingCover size="sm" title={r.title} subject={r.subject} coverPath={r.cover_path} />
+                    <span>
+                      <span className="block font-display font-semibold text-ink-900">{r.title}</span>
+                      <span className="block font-body text-xs text-ink-500 mt-0.5">{r.subject}{r.topic ? ` · ${r.topic}` : ''}</span>
+                    </span>
                   </button>
                 </li>
               ))}

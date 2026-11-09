@@ -29,6 +29,7 @@ export interface LecReading {
   source: string | null
   created_by: string | null
   status: ReadingStatus
+  cover_path: string | null
   created_at: string
   updated_at: string
 }
