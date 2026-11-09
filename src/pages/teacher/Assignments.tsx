@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import { useAuth } from '@/lib/auth'
 import { formatDate, levelName, modeLabel, type LecAssignment } from '@/lib/lec'
+import { effectiveDueDate, isTarget } from '@/lib/assignmentRules'
+import { fetchCurrentCycle } from '@/lib/rosterApi'
 
 interface Row extends LecAssignment {
   readingTitle: string
@@ -44,17 +46,42 @@ export default function Assignments() {
     }
     const raw = (data ?? []) as Raw[]
 
-    // Estudiantes por grupo (para saber cuántos deben leer cada asignación)
+    // Miembros actuales de cada grupo y la fecha en que se unieron (lec_group_joins).
+    // Sin fecha registrada se toma como miembro desde siempre.
     const groupIds = [...new Set(raw.flatMap(a => a.lec_assignment_targets.map(t => t.group_id).filter(Boolean)))] as string[]
-    const membersByGroup = new Map<string, string[]>()
+    const membersByGroup = new Map<string, { student_id: string; joined_at: string | null }[]>()
     if (groupIds.length) {
-      const { data: members } = await supabase
-        .from('reading_group_members')
-        .select('group_id, student_id')
-        .in('group_id', groupIds)
-      for (const m of (members ?? []) as { group_id: string; student_id: string }[]) {
-        membersByGroup.set(m.group_id, [...(membersByGroup.get(m.group_id) ?? []), m.student_id])
+      const [membersRes, joinsRes] = await Promise.all([
+        supabase.from('reading_group_members').select('group_id, student_id').in('group_id', groupIds),
+        supabase.from('lec_group_joins').select('group_id, student_id, joined_at').in('group_id', groupIds),
+      ])
+      const joined = new Map<string, string>()
+      for (const j of (joinsRes.data ?? []) as { group_id: string; student_id: string; joined_at: string }[]) {
+        joined.set(`${j.group_id}|${j.student_id}`, j.joined_at)
       }
+      for (const m of (membersRes.data ?? []) as { group_id: string; student_id: string }[]) {
+        membersByGroup.set(m.group_id, [
+          ...(membersByGroup.get(m.group_id) ?? []),
+          { student_id: m.student_id, joined_at: joined.get(`${m.group_id}|${m.student_id}`) ?? null },
+        ])
+      }
+    }
+
+    // Bajas del ciclo actual
+    const bajaDate = new Map<string, string | null>()
+    try {
+      const cycle = await fetchCurrentCycle()
+      const { data: enr } = await supabase
+        .from('lec_enrollments')
+        .select('student_id, status_date')
+        .eq('cycle', cycle.cycle)
+        .eq('status', 'baja')
+      for (const e of (enr ?? []) as { student_id: string; status_date: string | null }[]) {
+        // Sin fecha registrada se toma como baja desde siempre.
+        bajaDate.set(e.student_id, e.status_date ?? '0000-01-01')
+      }
+    } catch (err) {
+      console.error(err)
     }
 
     // Intentos por asignación (iniciados y completados)
@@ -75,17 +102,31 @@ export default function Assignments() {
     }
 
     setRows(raw.map(a => {
-      const students = new Set<string>()
+      const due = effectiveDueDate(a)
+      const targets = new Set<string>()
       for (const t of a.lec_assignment_targets) {
-        if (t.student_id) students.add(t.student_id)
-        if (t.group_id) (membersByGroup.get(t.group_id) ?? []).forEach(s => students.add(s))
+        if (t.student_id && isTarget({ individual: true, joinedAt: null, assignmentCreatedAt: a.created_at, dueDate: due, bajaDate: bajaDate.get(t.student_id) ?? null })) {
+          targets.add(t.student_id)
+        }
+        if (!t.group_id) continue
+        for (const m of membersByGroup.get(t.group_id) ?? []) {
+          const ok = isTarget({
+            individual: false,
+            joinedAt: m.joined_at ?? '1970-01-01T12:00:00Z',
+            assignmentCreatedAt: a.created_at,
+            dueDate: due,
+            bajaDate: bajaDate.get(m.student_id) ?? null,
+          })
+          if (ok) targets.add(m.student_id)
+        }
       }
+      const done = completedBy.get(a.id) ?? new Set<string>()
       return {
         ...a,
         readingTitle: a.lec_readings?.title ?? 'Lectura eliminada',
         groupNames: a.lec_assignment_targets.map(t => t.reading_groups?.name).filter(Boolean) as string[],
-        totalStudents: students.size,
-        completed: completedBy.get(a.id)?.size ?? 0,
+        totalStudents: targets.size,
+        completed: [...done].filter(id => targets.has(id)).length,
         started: startedBy.get(a.id) ?? 0,
       }
     }))
