@@ -41,7 +41,7 @@
 |---|---|
 | `src/lib/covers.ts` (nuevo) | Lógica pura: `SUBJECT_STYLES`, `subjectStyle`, `contrastRatio`, `coverPrompt`, `validateCoverFile`, `COVER_STEPS`. |
 | `src/lib/covers.test.ts` (nuevo) | Pruebas de lo anterior, incluido el contraste AA de cada materia. |
-| `src/lib/coverImage.ts` (nuevo) | `toCoverWebp(file)`: recorte 2:3 al centro y conversión a WebP en canvas. |
+| `src/lib/coverImage.ts` (nuevo) | `toCoverBlob(file)`: recorte 2:3 al centro y conversión a WebP en canvas. |
 | `src/lib/coverApi.ts` (nuevo) | `coverUrl`, `uploadCover` y `removeCover` contra Storage y `lec_readings`. |
 | `supabase/migrations/2026-11-09_portadas.sql` (nuevo) | Columna `cover_path`, bucket, políticas y verificación. |
 | `src/components/ReadingCover.tsx` (nuevo) | Portada: imagen o provisional. |
@@ -174,7 +174,7 @@ git commit -m "Portadas: colores de materia con contraste AA, prompt para Gemini
     - `alter table public.lec_readings add column if not exists cover_path text;`
     - Bucket `lec-covers`: `public = true`, `file_size_limit = 1048576` y `allowed_mime_types = '{image/webp}'`.
     - Políticas en `storage.objects` con `bucket_id = 'lec-covers'`: "lec covers docentes insert", "… update" y "… delete", todas con `public.lec_is_teacher()`. La lectura es pública porque el bucket lo es.
-  - `toCoverWebp(file: File): Promise<Blob>` en `coverImage.ts`. Proceso:
+  - `toCoverBlob(file: File): Promise<Blob>` en `coverImage.ts`. Proceso:
     1. Carga la imagen con `createImageBitmap(file)`.
     2. Recorta al centro el rectángulo 2:3 más grande que quepa.
     3. Lo dibuja en un canvas de 600×900.
@@ -203,7 +203,7 @@ on conflict (id) do update set public = excluded.public, file_size_limit = exclu
 Cierra con esta verificación:
 
 ```sql
--- Esperado: columna = 1; bucket_publico = true; politicas = 3
+-- Esperado: columna = 1; bucket_publico = true; politicas = 4
 select
   (select count(*) from information_schema.columns where table_name = 'lec_readings' and column_name = 'cover_path') as columna,
   (select public from storage.buckets where id = 'lec-covers') as bucket_publico,
@@ -220,7 +220,7 @@ Expected: sin errores; las pruebas pasan.
 - [ ] **Step 4: Larisa corre el SQL**
 
 Pedirle que corra `2026-11-09_portadas.sql` en el SQL Editor, dos veces.
-Expected: `columna = 1`, `bucket_publico = true` y `politicas = 3` en ambas corridas, sin errores.
+Expected: `columna = 1`, `bucket_publico = true` y `politicas = 4` en ambas corridas, sin errores.
 
 - [ ] **Step 5: Commit**
 
@@ -238,7 +238,7 @@ git commit -m "Portadas: bucket lec-covers, columna cover_path, conversión a We
 - Modify: `src/pages/teacher/ReadingDetail.tsx` (encabezado, líneas 89-118), `src/pages/teacher/Library.tsx` (fila de la lista, alrededor de la línea 106) y `src/pages/student/StudentLibrary.tsx` (fila, alrededor de la línea 96).
 
 **Interfaces:**
-- Consumes: `subjectStyle`, `coverPrompt`, `COVER_STEPS`, `COVER_ACCEPT` y `validateCoverFile` (Tarea 1); `toCoverWebp`, `coverUrl`, `uploadCover` y `removeCover` (Tarea 2).
+- Consumes: `subjectStyle`, `coverPrompt`, `COVER_STEPS`, `COVER_ACCEPT` y `validateCoverFile` (Tarea 1); `toCoverBlob`, `coverUrl`, `uploadCover` y `removeCover` (Tarea 2).
 - Produces (para los planes 3 y 4):
   - `ReadingCover({ title, subject, coverPath, size = 'md', className? }: { title: string; subject: string; coverPath: string | null; size?: 'sm' | 'md' | 'lg'; className?: string })`.
     - Tamaños: `sm` = 48 px de ancho, `md` = 140 px, `lg` = 180 px; siempre `aspect-[2/3]`.
@@ -255,7 +255,7 @@ git commit -m "Portadas: bucket lec-covers, columna cover_path, conversión a We
 - Debajo, una línea con `COVER_STEPS`. Si no hay imagen subida, una etiqueta "Portada provisional".
 - **Al elegir un archivo:**
   1. Llama `validateCoverFile`. Si hay error, lo muestra en `role="alert"` y no sube nada.
-  2. Si pasa, muestra "Subiendo portada…", llama `toCoverWebp`, luego `uploadCover`, y después `onChange(path)`.
+  2. Si pasa, muestra "Subiendo portada…", llama `toCoverBlob`, luego `uploadCover`, y después `onChange(path)`.
   3. Si algo falla, muestra "No se pudo subir la portada. Inténtalo de nuevo."
 - **Al copiar:** `navigator.clipboard.writeText(coverPrompt(title, subject))` y el aviso "Prompt copiado". Si falla, muestra el prompt en un `<textarea readOnly>` ya seleccionado (`select()` al montarse) con el texto "Cópialo con Ctrl+C".
 

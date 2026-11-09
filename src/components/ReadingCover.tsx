@@ -41,20 +41,21 @@ export default function ReadingCover({ title, subject, coverPath, size = 'md', c
   return (
     <div
       role="img"
+      lang="es"
       aria-label={`Portada de ${title}`}
       className={`${base} flex flex-col justify-between`}
       style={{ background: st.bg, color: st.fg, boxShadow: SPINE }}
     >
       <span
         aria-hidden
-        className={`absolute pointer-events-none select-none opacity-20 ${size === 'sm' ? 'inset-0 flex items-center justify-center text-xl opacity-60' : '-right-3 -bottom-3 text-7xl'}`}
+        className={`absolute pointer-events-none select-none ${size === 'sm' ? 'inset-0 flex items-center justify-center text-xl opacity-60' : '-right-3 -bottom-3 text-7xl opacity-20'}`}
       >
         {st.motif}
       </span>
       {size !== 'sm' && (
         <>
           <span className="relative px-3 pl-4 pt-3 font-body text-[10px] uppercase tracking-wider opacity-90 line-clamp-2">{subject}</span>
-          <span className={`relative px-3 pl-4 pb-3 font-display font-bold leading-tight line-clamp-4 ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
+          <span className={`relative px-3 pl-4 pb-3 font-display font-bold leading-tight line-clamp-4 break-words hyphens-auto ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
             {title}
           </span>
         </>

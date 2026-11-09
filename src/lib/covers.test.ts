@@ -47,3 +47,11 @@ describe('validateCoverFile', () => {
     expect(validateCoverFile({ type: 'image/jpeg', size: 10 * 1024 * 1024 + 1 })).toMatch(/10 MB/)
   })
 })
+
+describe('coverFileName', () => {
+  it('usa la extensión del tipo de imagen', async () => {
+    const { coverFileName } = await import('./covers')
+    expect(coverFileName('abc', 'image/webp', 123)).toBe('abc/123.webp')
+    expect(coverFileName('abc', 'image/jpeg', 123)).toBe('abc/123.jpg')
+  })
+})

@@ -88,7 +88,7 @@ export default function ReadingDetail() {
         </button>
 
         <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5 flex flex-wrap items-start justify-between gap-4">
-          <CoverPanel reading={reading} onChange={cover_path => setReading({ ...reading, cover_path })} />
+          <CoverPanel reading={reading} onChange={cover_path => setReading(r => (r ? { ...r, cover_path } : r))} />
           <div className="flex-1 min-w-[220px]">
             <h2 className="font-display text-2xl font-bold text-ink-900">{reading.title}</h2>
             <p className="font-body text-sm text-ink-500 mt-1">

@@ -62,3 +62,8 @@ export function validateCoverFile(f: { type: string; size: number }): string | n
   }
   return null
 }
+
+/** Ruta del archivo en el bucket: nombre nuevo en cada subida (evita la caché). */
+export function coverFileName(readingId: string, mime: string, now: number = Date.now()): string {
+  return `${readingId}/${now}.${mime === 'image/jpeg' ? 'jpg' : 'webp'}`
+}

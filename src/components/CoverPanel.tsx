@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ReadingCover from '@/components/ReadingCover'
 import { COVER_ACCEPT, COVER_STEPS, coverPrompt, validateCoverFile } from '@/lib/covers'
-import { toCoverWebp } from '@/lib/coverImage'
+import { toCoverBlob } from '@/lib/coverImage'
 import { removeCover, uploadCover } from '@/lib/coverApi'
 import type { LecReading } from '@/lib/lec'
 
@@ -29,7 +29,7 @@ export default function CoverPanel({ reading, onChange }: {
     }
     setBusy('subiendo')
     try {
-      const blob = await toCoverWebp(file)
+      const blob = await toCoverBlob(file)
       onChange(await uploadCover(reading, blob))
     } catch (err) {
       console.error(err)

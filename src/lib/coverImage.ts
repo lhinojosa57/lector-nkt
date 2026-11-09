@@ -1,14 +1,17 @@
-/** Convierte la imagen elegida en una portada WebP de 600×900 (2:3), recortada al centro. */
+/**
+ * Convierte la imagen elegida en una portada de 600×900 (2:3), recortada al centro.
+ * WebP; si el navegador no sabe generar WebP (Safari de iPhone/iPad), JPEG.
+ */
 
 const W = 600
 const H = 900
 const TARGET_BYTES = 300_000
 
-function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
-  return new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality))
+function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality))
 }
 
-export async function toCoverWebp(file: File): Promise<Blob> {
+export async function toCoverBlob(file: File): Promise<Blob> {
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(file)
@@ -34,15 +37,15 @@ export async function toCoverWebp(file: File): Promise<Blob> {
   ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, W, H)
   bitmap.close()
 
-  let best: Blob | null = null
-  for (let q = 0.85; q >= 0.5 - 1e-9; q -= 0.1) {
-    const blob = await toBlob(canvas, q)
-    if (!blob) break
-    best = blob
-    if (blob.size <= TARGET_BYTES) break
+  for (const type of ['image/webp', 'image/jpeg']) {
+    let best: Blob | null = null
+    for (let q = 0.85; q >= 0.5 - 1e-9; q -= 0.1) {
+      const blob = await toBlob(canvas, type, q)
+      if (!blob || blob.type !== type) { best = null; break } // el navegador no soporta este formato
+      best = blob
+      if (blob.size <= TARGET_BYTES) break
+    }
+    if (best) return best
   }
-  if (!best || best.type !== 'image/webp') {
-    throw new Error('Tu navegador no pudo convertir la imagen. Prueba con Chrome o Edge.')
-  }
-  return best
+  throw new Error('Tu navegador no pudo convertir la imagen. Prueba con Chrome o Edge.')
 }

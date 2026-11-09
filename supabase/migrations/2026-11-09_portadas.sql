@@ -10,13 +10,20 @@
 
 alter table public.lec_readings add column if not exists cover_path text;
 
--- Bucket público: las portadas no son datos sensibles. La app sube WebP de 600×900.
+-- Bucket público: las portadas no son datos sensibles. La app sube WebP de 600×900
+-- (JPEG si el navegador no sabe generar WebP, como Safari en iPhone/iPad).
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('lec-covers', 'lec-covers', true, 1048576, '{image/webp}')
+values ('lec-covers', 'lec-covers', true, 1048576, '{image/webp,image/jpeg}')
 on conflict (id) do update
   set public = excluded.public,
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
+
+-- Storage necesita permiso de lectura para poder borrar (remove) archivos por API.
+drop policy if exists "lec covers docentes select" on storage.objects;
+create policy "lec covers docentes select" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'lec-covers' and public.lec_is_teacher());
 
 drop policy if exists "lec covers docentes insert" on storage.objects;
 create policy "lec covers docentes insert" on storage.objects
@@ -35,7 +42,7 @@ create policy "lec covers docentes delete" on storage.objects
   using (bucket_id = 'lec-covers' and public.lec_is_teacher());
 
 -- ---------- Verificación ----------
--- Esperado: columna = 1; bucket_publico = true; politicas = 3
+-- Esperado: columna = 1; bucket_publico = true; politicas = 4
 select
   (select count(*) from information_schema.columns
      where table_schema = 'public' and table_name = 'lec_readings' and column_name = 'cover_path') as columna,

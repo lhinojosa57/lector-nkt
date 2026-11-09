@@ -1,5 +1,6 @@
 /** Portadas en Supabase Storage (bucket público "lec-covers"). */
 import { supabase } from '@/lib/supabase'
+import { coverFileName } from '@/lib/covers'
 
 const BUCKET = 'lec-covers'
 
@@ -9,14 +10,16 @@ export function coverUrl(path: string | null): string | null {
 }
 
 async function deleteFile(path: string) {
-  const { error } = await supabase.storage.from(BUCKET).remove([path])
-  if (error) console.error('No se pudo borrar la portada anterior', error)
+  const { data, error } = await supabase.storage.from(BUCKET).remove([path])
+  // Sin permiso de lectura, Storage no borra y tampoco marca error: se detecta por la lista vacía.
+  if (error || !data?.length) console.error('No se pudo borrar la portada anterior', path, error)
 }
 
 /** Sube la portada con un nombre nuevo (evita la caché) y borra la anterior. Devuelve el path nuevo. */
 export async function uploadCover(reading: { id: string; cover_path: string | null }, blob: Blob): Promise<string> {
-  const path = `${reading.id}/${Date.now()}.webp`
-  const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/webp', upsert: false })
+  const type = blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp'
+  const path = coverFileName(reading.id, type)
+  const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: type, upsert: false })
   if (upErr) throw upErr
   const { error: dbErr } = await supabase
     .from('lec_readings')
