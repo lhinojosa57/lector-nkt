@@ -11,6 +11,8 @@ const CLIENT_ID =
   import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID ||
   '488991934580-81o43d0sjphp4qij1tmo92cm1h6ocb26.apps.googleusercontent.com'
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
+/** Docentes: leer los audios que los estudiantes compartieron con el grupo. */
+const SCOPE_READ = 'https://www.googleapis.com/auth/drive.readonly'
 const FOLDER_NAME = 'LectorNKT'
 const TEACHERS_GROUP = 'docentes-aprendenkt@nikolatesla.edu.mx'
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
@@ -45,6 +47,8 @@ declare global {
 
 let gisPromise: Promise<void> | null = null
 let token: { value: string; expiresAt: number } | null = null
+/** Token aparte para leer (docentes); no se mezcla con el de subir. */
+let readToken: { value: string; expiresAt: number } | null = null
 
 function loadGis(): Promise<void> {
   if (window.google?.accounts?.oauth2) return Promise.resolve()
@@ -76,11 +80,16 @@ export function hasDriveToken() {
  */
 export async function requestDriveAccess(email?: string): Promise<string> {
   if (hasDriveToken()) return token!.value
-  await loadGis()
-  return new Promise((resolve, reject) => {
+  const t = await requestToken(SCOPE, email)
+  token = t
+  return t.value
+}
+
+function requestToken(scope: string, email?: string): Promise<{ value: string; expiresAt: number }> {
+  return loadGis().then(() => new Promise((resolve, reject) => {
     const client = window.google!.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
-      scope: SCOPE,
+      scope,
       hd: 'nikolatesla.edu.mx',
       login_hint: email,
       callback: r => {
@@ -88,13 +97,33 @@ export async function requestDriveAccess(email?: string): Promise<string> {
           reject(new Error(r.error_description || r.error || 'Permiso no concedido'))
           return
         }
-        token = { value: r.access_token, expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000 }
-        resolve(r.access_token)
+        resolve({ value: r.access_token, expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000 })
       },
       error_callback: e => reject(new Error(e.type === 'popup_closed' ? 'Cerraste la ventana de Google.' : e.message || e.type)),
     })
     client.requestAccessToken({ prompt: '' })
-  })
+  }))
+}
+
+export function hasDriveReadToken() {
+  return !!readToken && readToken.expiresAt > Date.now() + 60_000
+}
+
+/**
+ * Descarga un audio compartido con el docente para reproducirlo en la app.
+ * La primera vez abre el permiso de Google: debe llamarse desde un clic.
+ */
+export async function downloadAudio(fileId: string, email?: string): Promise<Blob> {
+  if (!hasDriveReadToken()) readToken = await requestToken(SCOPE_READ, email)
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${readToken!.value}` } }
+  )
+  if (!res.ok) {
+    if (res.status === 401) readToken = null
+    throw new Error(`Drive ${res.status}`)
+  }
+  return res.blob()
 }
 
 async function driveFetch(url: string, init: RequestInit = {}) {
