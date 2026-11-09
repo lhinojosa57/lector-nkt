@@ -67,7 +67,9 @@ export default function CoverPanel({ reading, onChange }: {
     }
   }
 
-  const btn = 'font-body text-sm px-3 py-2 rounded-lg border border-parchment-300 text-ink-700 bg-white hover:bg-parchment-100 disabled:opacity-50'
+  const base = 'font-body text-sm px-3 py-2 rounded-lg border disabled:opacity-50'
+  const btn = `${base} border-parchment-300 text-ink-700 bg-white hover:bg-parchment-100`
+  const primary = `${base} border-teal-600 bg-teal-600 text-white hover:bg-teal-500`
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-start">
@@ -76,7 +78,7 @@ export default function CoverPanel({ reading, onChange }: {
         {!hasCover && <span className="inline-block font-body text-xs px-2 py-1 rounded-full bg-parchment-200 text-ink-700">Portada provisional</span>}
         <div className="flex flex-wrap gap-2">
           <input ref={inputRef} type="file" accept={COVER_ACCEPT} onChange={onFile} className="hidden" aria-hidden tabIndex={-1} />
-          <button onClick={() => inputRef.current?.click()} disabled={!!busy} className={`${btn} bg-teal-600 border-teal-600 text-white hover:bg-teal-500`}>
+          <button onClick={() => inputRef.current?.click()} disabled={!!busy} className={primary}>
             {busy === 'subiendo' ? 'Subiendo portada…' : hasCover ? 'Cambiar portada' : '⬆ Subir portada'}
           </button>
           {hasCover && (
