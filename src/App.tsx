@@ -6,7 +6,7 @@ import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
 import StudentDashboard from '@/pages/student/StudentDashboard'
-import TeacherDashboard from '@/pages/teacher/TeacherDashboard'
+import Students from '@/pages/teacher/Students'
 import TeacherGroupsLector from '@/pages/teacher/TeacherGroupsLector'
 import SessionPage from '@/pages/session/SessionPage'
 import Library from '@/pages/teacher/Library'
@@ -76,7 +76,7 @@ export default function App() {
 
       <Route path="/teacher" element={
         <ProtectedRoute role="teacher">
-          <TeacherDashboard />
+          <Students />
         </ProtectedRoute>
       } />
 
