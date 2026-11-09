@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import { useAuth } from '@/lib/auth'
 import { formatDate, levelName, modeLabel, type LecAssignment } from '@/lib/lec'
-import { effectiveDueDate, isTarget } from '@/lib/assignmentRules'
+import { effectiveDueDate, isTarget, localDate } from '@/lib/assignmentRules'
 import { fetchCurrentCycle } from '@/lib/rosterApi'
 
 interface Row extends LecAssignment {
@@ -208,7 +208,7 @@ export default function Assignments() {
                       {' · '}{a.groupNames.join(', ') || 'Sin grupo'}
                     </p>
                     <p className="font-body text-xs text-ink-400 mt-0.5">
-                      Asignada {formatDate(a.created_at)} · Fecha límite {formatDate(a.due_date)}
+                      Asignada {formatDate(localDate(a.created_at))} · Fecha límite {formatDate(effectiveDueDate(a))}{a.due_date ? '' : ' (automática, 7 días)'}
                     </p>
                   </div>
                   <div className="text-center">

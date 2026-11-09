@@ -79,7 +79,10 @@ create policy "estudiantes sus uniones" on public.lec_group_joins
   for select to authenticated using (student_id = auth.uid());
 drop policy if exists "estudiantes registran su union" on public.lec_group_joins;
 create policy "estudiantes registran su union" on public.lec_group_joins
-  for insert to authenticated with check (student_id = auth.uid());
+  for insert to authenticated with check (
+    student_id = auth.uid()
+    and joined_at between now() - interval '5 minutes' and now() + interval '1 minute'  -- no se puede inventar la fecha
+  );
 
 -- ---------- Funciones ----------
 create or replace function public.lec_current_cycle()
@@ -90,25 +93,32 @@ as $$
 $$;
 
 -- ¿Está dado de baja en el ciclo actual? Sin fila = no.
+-- Solo responde sobre uno mismo (o a docentes): no revela el estado de otros estudiantes.
 create or replace function public.lec_is_dropped(p_student uuid)
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select exists (
-    select 1 from public.lec_enrollments e
-    where e.student_id = p_student
-      and e.cycle = public.lec_current_cycle()
-      and e.status = 'baja'
-  );
+  select (p_student = auth.uid() or public.lec_is_teacher())
+     and exists (
+       select 1 from public.lec_enrollments e
+       where e.student_id = p_student
+         and e.cycle = public.lec_current_cycle()
+         and e.status = 'baja'
+     );
 $$;
+revoke execute on function public.lec_is_dropped(uuid) from public, anon;
+grant execute on function public.lec_is_dropped(uuid) to authenticated;
 
 -- Prepara el ciclo siguiente: 1°→2°, 2°→3°, 3°→egresado. Las bajas no pasan.
--- No pisa filas que ya existan en el ciclo destino. Devuelve cuántas creó.
+-- No pisa filas que ya existan en el ciclo destino, salvo para sincronizar bajas:
+-- quien se dio de baja en p_from después de una primera corrida queda de baja en p_to.
+-- Devuelve { "creados": n, "bajas_sincronizadas": m }.
+drop function if exists public.lec_promote_cycle(text, text);
 create or replace function public.lec_promote_cycle(p_from text, p_to text)
-returns int
+returns jsonb
 language plpgsql security definer set search_path = public
 as $$
-declare n int;
+declare n int; m int;
 begin
   if not public.lec_is_teacher() then raise exception 'Solo docentes'; end if;
 
@@ -130,9 +140,16 @@ begin
   from public.lec_enrollments e
   where e.cycle = p_from and e.status = 'activo'
   on conflict (student_id, cycle) do nothing;
-
   get diagnostics n = row_count;
-  return n;
+
+  update public.lec_enrollments t
+     set status = 'baja', status_date = f.status_date, updated_by = auth.uid(), updated_at = now()
+    from public.lec_enrollments f
+   where f.cycle = p_from and f.status = 'baja'
+     and t.cycle = p_to and t.student_id = f.student_id and t.status = 'activo';
+  get diagnostics m = row_count;
+
+  return jsonb_build_object('creados', n, 'bajas_sincronizadas', m);
 end;
 $$;
 

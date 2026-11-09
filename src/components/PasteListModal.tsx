@@ -21,6 +21,13 @@ export default function PasteListModal({ cycle, onClose, onApplied }: {
   const withoutGrade = mode === 'grados' ? preview.rows.filter(r => r.grade === null) : []
 
   async function apply() {
+    if (mode === 'bajas') {
+      const n = usable.length
+      const extra = usable.some(r => r.grade !== null)
+        ? '\n\nOjo: la lista trae una segunda columna (¿grados?). Verifica que de verdad sea una lista de bajas.'
+        : ''
+      if (!window.confirm(`¿Dar de baja a ${n} ${n === 1 ? 'estudiante' : 'estudiantes'}? Ya no podrán entrar a LectorNKT y dejarán de contar desde hoy.${extra}`)) return
+    }
     setBusy(true)
     setError('')
     try {
@@ -91,6 +98,9 @@ export default function PasteListModal({ cycle, onClose, onApplied }: {
               <ul className="text-xs text-crimson-500 list-disc pl-5">
                 {preview.invalid.map(i => <li key={i.line}>Renglón {i.line}: <span className="font-mono">{i.text}</span></li>)}
               </ul>
+            )}
+            {mode === 'bajas' && preview.rows.some(r => r.grade !== null) && (
+              <p className="text-xs text-crimson-500">La lista trae una segunda columna con grados. ¿Seguro que es una lista de bajas?</p>
             )}
             {withoutGrade.length > 0 && (
               <p className="text-xs text-crimson-500">Sin grado: {withoutGrade.map(r => r.email).join(', ')}</p>

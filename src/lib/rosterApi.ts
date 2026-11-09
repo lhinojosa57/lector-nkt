@@ -134,8 +134,9 @@ export async function purgeStudent(studentId: string): Promise<Record<string, nu
   return (data ?? {}) as Record<string, number>
 }
 
-export async function promoteCycle(from: string, to: string): Promise<number> {
+export async function promoteCycle(from: string, to: string): Promise<{ creados: number; bajas_sincronizadas: number }> {
   const { data, error } = await supabase.rpc('lec_promote_cycle', { p_from: from, p_to: to })
   if (error) throw error
-  return Number(data ?? 0)
+  const r = (data ?? {}) as { creados?: number; bajas_sincronizadas?: number }
+  return { creados: r.creados ?? 0, bajas_sincronizadas: r.bajas_sincronizadas ?? 0 }
 }

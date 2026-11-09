@@ -110,11 +110,15 @@ export default function Students() {
     const to = nextCycle(cycle.cycle)
     if (!window.confirm(
       `Se creará el ciclo ${to} a partir de ${cycle.cycle}: 1° pasa a 2°, 2° pasa a 3° y 3° queda como egresado. ` +
-      'Los dados de baja no pasan. Si ya existe, solo se agregan los que falten.'
+      'Los dados de baja no pasan. Si ya existe, solo se agregan los que falten y se actualizan las bajas nuevas.'
     )) return
     try {
-      const n = await promoteCycle(cycle.cycle, to)
-      setNotice(`Listo: ${n} ${n === 1 ? 'estudiante' : 'estudiantes'} en ${to}.`)
+      const r = await promoteCycle(cycle.cycle, to)
+      const parts = [
+        r.creados > 0 ? `${r.creados} ${r.creados === 1 ? 'estudiante nuevo' : 'estudiantes nuevos'} en ${to}` : `${to} ya estaba al día`,
+        r.bajas_sincronizadas > 0 ? `${r.bajas_sincronizadas} ${r.bajas_sincronizadas === 1 ? 'baja actualizada' : 'bajas actualizadas'}` : '',
+      ].filter(Boolean)
+      setNotice(`Listo: ${parts.join(' · ')}.`)
     } catch (err) {
       console.error(err)
       setError('No se pudo preparar el ciclo siguiente.')

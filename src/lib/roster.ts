@@ -14,9 +14,12 @@ export function parseGrade(raw: string): Grade | null {
   const s = raw
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[°º]/g, '')
-    .replace(/(\d)o\b/g, '$1')
+    .replace(/\bde secundaria\b/g, '')
     .replace(/\bgrado\b/g, '')
+    .replace(/[°º.]/g, ' ')
+    .replace(/(\d)\s*(ro|do|er|mo|vo|no|to|o)\b/g, '$1')
+    .trim()
+    .replace(/^(\d+)\s*[a-z]$/, '$1') // letra de grupo: "1° A", "2°B"
     .trim()
   if (!s) return null
   if (/^\d+$/.test(s)) {

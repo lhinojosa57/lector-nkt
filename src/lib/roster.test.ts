@@ -8,6 +8,8 @@ describe('parseGrade', () => {
     ['Primero', 1], ['segundo', 2], ['TERCERO', 3],
     ['séptimo', 1], ['octavo', 2], ['noveno', 3],
     [' 2 ', 2], ['Primer grado', 1], ['Segundo grado', 2],
+    ['1ro', 1], ['2do', 2], ['3ro', 3], ['1er', 1], ['7mo', 1], ['8vo', 2], ['9no', 3],
+    ['1° A', 1], ['2°B', 2], ['1° de secundaria', 1], ['3ro. C', 3],
   ])('%s → %s', (raw, expected) => expect(parseGrade(raw)).toBe(expected))
 
   it.each(['', '4', '10', 'quinto', 'abc'])('%s → null', raw => expect(parseGrade(raw)).toBeNull())
