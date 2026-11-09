@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { recordGroupJoin } from '@/lib/rosterApi'
 import { useAuth } from '@/lib/auth'
 import LevelBadge, { levelMotto } from '@/components/LevelBadge'
 import {
@@ -129,6 +130,7 @@ export default function StudentDashboard() {
       setJoinError('Error al unirse. Intenta de nuevo.')
       return
     }
+    await recordGroupJoin(profile.id, group.id).catch(err => console.error('No se registró la fecha de unión', err))
     setShowJoin(false)
     setJoinCode('')
     setNotice(`Te uniste al grupo "${group.name}".`)

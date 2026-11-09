@@ -1,6 +1,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
+import { useEnrollmentStatus } from '@/lib/useEnrollmentStatus'
 import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 import DiagnosticPage from '@/pages/diagnostic/DiagnosticPage'
@@ -18,9 +19,10 @@ import FluencyQueue from '@/pages/teacher/FluencyQueue'
 import FluencyReview from '@/pages/teacher/FluencyReview'
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, signOut } = useAuth()
+  const enrollment = useEnrollmentStatus(profile?.role === 'student' ? profile.id : undefined)
 
-  if (loading) {
+  if (loading || enrollment.loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-sepia-100">
         <div className="text-center">
@@ -35,6 +37,18 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   if (!profile?.role) return null
   if (role && profile.role !== role) {
     return <Navigate to={profile.role === 'teacher' ? '/teacher' : '/student'} replace />
+  }
+  if (profile.role === 'student' && enrollment.status === 'baja') {
+    return (
+      <div className="min-h-screen bg-sepia-100 flex items-center justify-center p-6">
+        <div role="alert" className="max-w-md bg-parchment-50 border border-parchment-200 rounded-xl p-6 text-center space-y-4">
+          <p className="font-body text-ink-800">Tu cuenta ya no está activa en LectorNKT. Si es un error, avisa a tu docente.</p>
+          <button onClick={signOut} className="font-body text-sm px-4 py-2 rounded-lg bg-ink-800 text-parchment-50 hover:bg-ink-700">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>
