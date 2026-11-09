@@ -187,12 +187,16 @@ export default function FluencyReview() {
           {/* Texto para marcar */}
           <div className="lg:col-span-2 space-y-3">
             <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 space-y-2">
-              <iframe
-                title="Grabación del estudiante"
-                src={`https://drive.google.com/file/d/${data.driveFileId}/preview`}
-                className="w-full h-[120px] rounded-lg border border-parchment-200 bg-white"
-                allow="autoplay"
-              />
+              {/* El reproductor de Drive es oscuro y necesita ~170 px para mostrar la barra
+                  de avance completa; el marco del mismo color evita bordes blancos. */}
+              <div className="rounded-lg overflow-hidden bg-[#202124]">
+                <iframe
+                  title="Grabación del estudiante"
+                  src={`https://drive.google.com/file/d/${data.driveFileId}/preview`}
+                  className="block w-full h-[170px] border-0"
+                  allow="autoplay"
+                />
+              </div>
               <p className="font-body text-xs text-ink-500">
                 Si no se reproduce, revisa que estés en tu cuenta de Google del colegio y que pertenezcas al grupo de docentes,
                 o <a href={`https://drive.google.com/file/d/${data.driveFileId}/view`} target="_blank" rel="noreferrer" className="underline">ábrela en Drive</a>.
