@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import { useAuth } from '@/lib/auth'
 import { formatDate, levelName, modeLabel, type LecAssignment } from '@/lib/lec'
-import { effectiveDueDate, isTarget, localDate } from '@/lib/assignmentRules'
+import { effectiveDueDate, localDate } from '@/lib/assignmentRules'
+import { computeTargets } from '@/lib/assignmentTargets'
 import { fetchCurrentCycle } from '@/lib/rosterApi'
 
 interface Row extends LecAssignment {
@@ -102,24 +103,7 @@ export default function Assignments() {
     }
 
     setRows(raw.map(a => {
-      const due = effectiveDueDate(a)
-      const targets = new Set<string>()
-      for (const t of a.lec_assignment_targets) {
-        if (t.student_id && isTarget({ individual: true, joinedAt: null, assignmentCreatedAt: a.created_at, dueDate: due, bajaDate: bajaDate.get(t.student_id) ?? null })) {
-          targets.add(t.student_id)
-        }
-        if (!t.group_id) continue
-        for (const m of membersByGroup.get(t.group_id) ?? []) {
-          const ok = isTarget({
-            individual: false,
-            joinedAt: m.joined_at ?? '1970-01-01T12:00:00Z',
-            assignmentCreatedAt: a.created_at,
-            dueDate: due,
-            bajaDate: bajaDate.get(m.student_id) ?? null,
-          })
-          if (ok) targets.add(m.student_id)
-        }
-      }
+      const { targets } = computeTargets({ assignment: a, targets: a.lec_assignment_targets, membersByGroup, bajaDate })
       const done = completedBy.get(a.id) ?? new Set<string>()
       return {
         ...a,
