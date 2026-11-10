@@ -198,6 +198,12 @@ export default function Assignments() {
                   <div className="text-center">
                     <p className="font-mono text-lg font-bold text-ink-800">{a.completed}/{a.totalStudents}</p>
                     <p className="font-body text-xs text-ink-500">completaron</p>
+                    <button
+                      onClick={() => navigate(`/teacher/assignments/${a.id}/results`)}
+                      className="font-body text-xs text-teal-700 hover:underline mt-1"
+                    >
+                      Cómo les fue →
+                    </button>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <button

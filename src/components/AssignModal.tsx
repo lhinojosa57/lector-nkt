@@ -10,12 +10,14 @@ interface Props {
   availableLevels: number[]
   onClose: () => void
   onAssigned: () => void
+  /** Grupos ya marcados al abrir (por ejemplo, "Volver a asignar"). */
+  initialGroupIds?: string[]
 }
 
-export default function AssignModal({ readingId, readingTitle, availableLevels, onClose, onAssigned }: Props) {
+export default function AssignModal({ readingId, readingTitle, availableLevels, onClose, onAssigned, initialGroupIds }: Props) {
   const { profile } = useAuth()
   const [groups, setGroups] = useState<ReadingGroup[]>([])
-  const [selected, setSelected] = useState<string[]>([])
+  const [selected, setSelected] = useState<string[]>(initialGroupIds ?? [])
   const [mode, setMode] = useState<ReadingMode>('silent')
   const [fixedLevel, setFixedLevel] = useState<number | ''>('')
   const [dueDate, setDueDate] = useState('')
@@ -30,7 +32,12 @@ export default function AssignModal({ readingId, readingTitle, availableLevels, 
       .eq('teacher_id', profile.id)
       .eq('archived', false)
       .order('name')
-      .then(({ data }) => setGroups((data ?? []) as ReadingGroup[]))
+      .then(({ data }) => {
+        const gs = (data ?? []) as ReadingGroup[]
+        setGroups(gs)
+        // Solo quedan marcados los grupos que siguen activos y son del docente.
+        setSelected(s => s.filter(id => gs.some(g => g.id === id)))
+      })
   }, [profile?.id])
 
   const toggle = (id: string) =>
