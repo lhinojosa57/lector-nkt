@@ -6,20 +6,24 @@ import { levelName } from '@/lib/lec'
 import { formatGrade, type Grade } from '@/lib/roster'
 import { todayLocal } from '@/lib/assignmentRules'
 import {
-  fetchCurrentCycle, fetchRoster, setGrade, setStatus, purgeStudent, promoteCycle,
+  fetchCurrentCycle, fetchRoster, setGrade, setStatus, purgeStudent, promoteCycle, cycleExists, undoPromote,
   type Cycle, type RosterRow,
 } from '@/lib/rosterApi'
+import { useAuth } from '@/lib/auth'
+import { ADMIN_EMAIL, canPromoteOn, isAdminEmail, nextCycle, promoteAvailableFrom } from '@/lib/adminRules'
+import { formatDate } from '@/lib/lec'
 
 type GradeFilter = 'todos' | '1' | '2' | '3' | 'sin'
 
-function nextCycle(cycle: string): string {
-  const m = cycle.match(/^(\d{4})-(\d{4})$/)
-  return m ? `${Number(m[1]) + 1}-${Number(m[2]) + 1}` : cycle
-}
 
 const STATUS_LABEL: Record<RosterRow['status'], string> = { activo: 'Activo', baja: 'Baja', egresado: 'Egresado' }
 
 export default function Students() {
+  const { profile } = useAuth()
+  // Solo la cuenta de sistemas cambia grados, bajas y ciclo (la base de datos también lo exige).
+  const admin = isAdminEmail(profile?.email)
+  const [nextExists, setNextExists] = useState(false)
+  const [promoting, setPromoting] = useState(false)
   const [cycle, setCycle] = useState<Cycle | null>(null)
   const [rows, setRows] = useState<RosterRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,6 +41,7 @@ export default function Students() {
       const c = await fetchCurrentCycle()
       setCycle(c)
       setRows(await fetchRoster(c.cycle))
+      setNextExists(await cycleExists(nextCycle(c.cycle)).catch(() => false))
       setError('')
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
       const { data: ups, error: upsError } = await supabase
@@ -116,23 +121,17 @@ export default function Students() {
     }
   }
 
-  async function promote() {
+  async function undo() {
     if (!cycle) return
     const to = nextCycle(cycle.cycle)
-    if (!window.confirm(
-      `Se creará el ciclo ${to} a partir de ${cycle.cycle}: 1° pasa a 2°, 2° pasa a 3° y 3° queda como egresado. ` +
-      'Los dados de baja no pasan. Si ya existe, solo se agregan los que falten y se actualizan las bajas nuevas.'
-    )) return
+    if (!window.confirm(`¿Deshacer "Pasar de grado"? Se borra el ciclo ${to} con su copia de grados. El ciclo ${cycle.cycle} no cambia.`)) return
     try {
-      const r = await promoteCycle(cycle.cycle, to)
-      const parts = [
-        r.creados > 0 ? `${r.creados} ${r.creados === 1 ? 'estudiante nuevo' : 'estudiantes nuevos'} en ${to}` : `${to} ya estaba al día`,
-        r.bajas_sincronizadas > 0 ? `${r.bajas_sincronizadas} ${r.bajas_sincronizadas === 1 ? 'baja actualizada' : 'bajas actualizadas'}` : '',
-      ].filter(Boolean)
-      setNotice(`Listo: ${parts.join(' · ')}.`)
+      const n = await undoPromote(to)
+      setNextExists(false)
+      setNotice(`Listo: se deshizo el ciclo ${to} (${n} ${n === 1 ? 'inscripción borrada' : 'inscripciones borradas'}).`)
     } catch (err) {
       console.error(err)
-      setError('No se pudo preparar el ciclo siguiente.')
+      setError(`No se pudo deshacer: ${err instanceof Error ? err.message : 'inténtalo de nuevo'}.`)
     }
   }
 
@@ -185,13 +184,33 @@ export default function Students() {
             <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
             Ver dados de baja
           </label>
-          <button onClick={() => setShowPaste(true)} className="font-body text-sm px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-500">
-            Pegar lista
-          </button>
-          <button onClick={promote} className="font-body text-sm px-3 py-2 rounded-lg border border-parchment-300 text-ink-700 hover:bg-parchment-100">
-            Pasar de grado
-          </button>
+          {admin && (
+            <>
+              <button onClick={() => setShowPaste(true)} className="font-body text-sm px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-500">
+                Pegar lista
+              </button>
+              {cycle && (canPromoteOn(todayLocal(), cycle.ends_on) ? (
+                <button onClick={() => setPromoting(true)} className="font-body text-sm px-3 py-2 rounded-lg border border-parchment-300 text-ink-700 hover:bg-parchment-100">
+                  Pasar de grado
+                </button>
+              ) : (
+                <span className="font-body text-xs text-ink-500" title="Se habilita en el último mes y medio del ciclo">
+                  Pasar de grado: disponible a partir del {formatDate(promoteAvailableFrom(cycle.ends_on))}
+                </span>
+              ))}
+              {cycle && nextExists && (
+                <button onClick={() => void undo()} className="font-body text-sm px-3 py-2 rounded-lg border border-crimson-500 text-crimson-500 hover:bg-crimson-500/10">
+                  Deshacer ciclo {nextCycle(cycle.cycle)}
+                </button>
+              )}
+            </>
+          )}
         </div>
+        {!admin && (
+          <p className="font-body text-xs text-ink-500">
+            Solo la cuenta de sistemas ({ADMIN_EMAIL}) puede asignar grados, dar de baja y pasar de grado.
+          </p>
+        )}
 
         <div className="bg-parchment-50 border border-parchment-200 rounded-xl overflow-x-auto">
           <table className="w-full min-w-[720px]">
@@ -218,6 +237,9 @@ export default function Students() {
                       <p className="font-body text-xs text-ink-500">{r.email}</p>
                     </td>
                     <td className="px-3 py-3">
+                      {!admin ? (
+                        <span className="font-body text-sm text-ink-800">{formatGrade(r.grade)}</span>
+                      ) : (
                       <select
                         aria-label={`Grado de ${name}`}
                         value={r.grade ?? ''}
@@ -230,6 +252,7 @@ export default function Students() {
                         <option value="2">2°</option>
                         <option value="3">3°</option>
                       </select>
+                      )}
                     </td>
                     <td className="px-3 py-3 font-body text-xs text-ink-600">{r.groups.join(', ') || '—'}</td>
                     <td className="px-3 py-3 font-body text-xs text-ink-600">
@@ -245,6 +268,7 @@ export default function Students() {
                       </span>
                     </td>
                     <td className="px-3 py-3">
+                      {!admin ? <span className="font-body text-xs text-ink-400">—</span> : (
                       <div className="flex flex-wrap gap-2">
                         {r.status === 'activo' ? (
                           <button onClick={() => drop(r)} className="font-body text-xs text-ink-700 underline hover:text-ink-900">Dar de baja</button>
@@ -253,6 +277,7 @@ export default function Students() {
                         )}
                         <button onClick={() => setPurging(r)} className="font-body text-xs text-crimson-500 underline">Borrar datos de LectorNKT</button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -264,6 +289,17 @@ export default function Students() {
 
       {showPaste && cycle && (
         <PasteListModal cycle={cycle.cycle} onClose={() => setShowPaste(false)} onApplied={() => void load()} />
+      )}
+      {promoting && cycle && (
+        <PromoteDialog
+          from={cycle.cycle}
+          onClose={() => setPromoting(false)}
+          onDone={msg => {
+            setPromoting(false)
+            setNextExists(true)
+            setNotice(msg)
+          }}
+        />
       )}
       {purging && (
         <PurgeDialog
@@ -328,6 +364,59 @@ function PurgeDialog({ row, onClose, onDone }: {
           <button onClick={confirm} disabled={!matches || busy}
             className="flex-1 bg-crimson-500 text-white py-2.5 rounded-lg font-body text-sm font-medium disabled:opacity-40">
             {busy ? 'Borrando…' : 'Borrar definitivamente'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PromoteDialog({ from, onClose, onDone }: { from: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const to = nextCycle(from)
+  const [typed, setTyped] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function confirm() {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await promoteCycle(from, to)
+      const parts = [
+        r.creados > 0 ? `${r.creados} ${r.creados === 1 ? 'estudiante nuevo' : 'estudiantes nuevos'} en ${to}` : `${to} ya estaba al día`,
+        r.bajas_sincronizadas > 0 ? `${r.bajas_sincronizadas} ${r.bajas_sincronizadas === 1 ? 'baja actualizada' : 'bajas actualizadas'}` : '',
+      ].filter(Boolean)
+      onDone(`Listo: ${parts.join(' · ')}.`)
+    } catch (err) {
+      console.error(err)
+      setError(`No se pudo preparar el ciclo siguiente: ${err instanceof Error ? err.message : 'inténtalo de nuevo'}.`)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink-900/50 flex items-center justify-center p-4" onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="promote-title" aria-describedby="promote-desc"
+        className="bg-parchment-50 rounded-xl w-full max-w-md border border-parchment-200 p-6 space-y-3">
+        <h2 id="promote-title" className="font-display text-lg font-bold text-ink-800">Pasar de grado: crear el ciclo {to}</h2>
+        <div id="promote-desc" className="font-body text-sm text-ink-700 space-y-2">
+          <p>Se crea el ciclo {to} a partir de {from}: 1° pasa a 2°, 2° pasa a 3° y 3° queda como egresado. Los dados de baja no pasan.</p>
+          <p>El ciclo {from} no cambia. Si te equivocas, puedes deshacerlo mientras nadie use el ciclo nuevo.</p>
+          <p>Para confirmar, escribe el ciclo nuevo: <span className="font-mono">{to}</span></p>
+        </div>
+        <input
+          autoFocus
+          aria-label="Ciclo nuevo para confirmar"
+          value={typed}
+          onChange={e => setTyped(e.target.value)}
+          className="w-full border border-parchment-300 rounded-lg px-3 py-2 font-mono text-sm bg-white"
+        />
+        {error && <p role="alert" className="font-body text-sm text-crimson-500">{error}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-parchment-300 text-ink-700 py-2.5 rounded-lg font-body text-sm hover:bg-sepia-100">Cancelar</button>
+          <button onClick={() => void confirm()} disabled={typed.trim() !== to || busy}
+            className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-body text-sm font-medium hover:bg-teal-500 disabled:opacity-40">
+            {busy ? 'Creando…' : `Crear ciclo ${to}`}
           </button>
         </div>
       </div>

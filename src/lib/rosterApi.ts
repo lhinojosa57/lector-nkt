@@ -140,3 +140,17 @@ export async function promoteCycle(from: string, to: string): Promise<{ creados:
   const r = (data ?? {}) as { creados?: number; bajas_sincronizadas?: number }
   return { creados: r.creados ?? 0, bajas_sincronizadas: r.bajas_sincronizadas ?? 0 }
 }
+
+/** ¿Ya existe el ciclo siguiente (creado con "Pasar de grado")? */
+export async function cycleExists(cycle: string): Promise<boolean> {
+  const { data, error } = await supabase.from('lec_cycles').select('cycle').eq('cycle', cycle).maybeSingle()
+  if (error) throw error
+  return !!data
+}
+
+/** Deshace "Pasar de grado": borra el ciclo siguiente si no es el actual y no se ha usado. */
+export async function undoPromote(cycle: string): Promise<number> {
+  const { data, error } = await supabase.rpc('lec_undo_promote', { p_cycle: cycle })
+  if (error) throw error
+  return (data as number) ?? 0
+}
