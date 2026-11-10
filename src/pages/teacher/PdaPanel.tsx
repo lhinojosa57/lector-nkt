@@ -178,7 +178,7 @@ export default function PdaPanel() {
         ) : data && grade ? (
           <>
             <p className="font-body text-xs text-ink-500">
-              {data.assignmentsCount} asignación{data.assignmentsCount === 1 ? '' : 'es'} en el periodo
+              {data.assignmentsCount} {data.assignmentsCount === 1 ? 'asignación' : 'asignaciones'} en el periodo
               {data.studentsWithoutGrade > 0 && ` · ${data.studentsWithoutGrade} estudiante${data.studentsWithoutGrade === 1 ? '' : 's'} sin grado no cuenta${data.studentsWithoutGrade === 1 ? '' : 'n'}`}
             </p>
             {CAMPOS.map(c => (
