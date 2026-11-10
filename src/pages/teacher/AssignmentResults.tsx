@@ -48,8 +48,7 @@ export default function AssignmentResults() {
   const inTab = useMemo(() => {
     if (!data) return []
     if (tab === 'todos') return data.students
-    const name = data.groups.find(g => g.id === tab)?.name
-    return data.students.filter(s => name && s.groups.includes(name))
+    return data.students.filter(s => s.groups.includes(tab))
   }, [data, tab])
 
   const gradesPresent = useMemo(() => {
@@ -127,7 +126,7 @@ export default function AssignmentResults() {
       return [
         r.name,
         r.grade ? formatGrade(r.grade as Grade) : 'Sin grado',
-        st?.groups.join(', ') ?? '',
+        (st?.groups ?? []).map(id => data!.groups.find(g => g.id === id)?.name ?? '').filter(Boolean).join(', '),
         r.status,
         r.comprehension !== null ? Math.round(r.comprehension) : null,
         r.wcpm !== null ? Math.round(r.wcpm) : null,

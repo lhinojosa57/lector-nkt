@@ -42,7 +42,9 @@ export async function fetchAssignmentResults(assignmentId: string): Promise<Assi
 
   // Ciclo que contiene la fecha de creación; si ninguno, el actual.
   const created = localDate(raw.created_at)
-  const { data: cycles } = await supabase.from('lec_cycles').select('cycle, starts_on, ends_on, is_current')
+  const { data: cycles, error: cyclesError } = await supabase.from('lec_cycles').select('cycle, starts_on, ends_on, is_current')
+  // Sin ciclo no hay grados ni bajas: mejor avisar que mostrar a los dados de baja.
+  if (cyclesError) throw cyclesError
   const cs = (cycles ?? []) as { cycle: string; starts_on: string; ends_on: string; is_current: boolean }[]
   const cycle = cs.find(c => c.starts_on <= created && created <= c.ends_on) ?? cs.find(c => c.is_current) ?? null
 
@@ -109,13 +111,13 @@ export async function fetchAssignmentResults(assignmentId: string): Promise<Assi
 
   const names = new Map<string, string>()
   for (const p of (profilesRes.data ?? []) as { id: string; full_name: string | null; email: string }[]) names.set(p.id, p.full_name ?? p.email)
-  const groupName = new Map(groups.map(g => [g.id, g.name]))
 
   const students: ResultStudent[] = ids.map(id => ({
     id,
     name: names.get(id) ?? 'Estudiante',
     grade: grade.get(id) ?? null,
-    groups: (targetsInfo.groupOf.get(id) ?? []).map(g => groupName.get(g) ?? g),
+    // IDs de grupo (dos grupos pueden llamarse igual); el nombre se pone al mostrar.
+    groups: targetsInfo.groupOf.get(id) ?? [],
     isTarget: targetsInfo.targets.has(id),
     lateJoiner: !targetsInfo.targets.has(id),
   }))

@@ -17,6 +17,8 @@ export function computeTargets(i: TargetInput): { targets: Set<string>; lateJoin
   const targets = new Set<string>()
   const lateJoiners = new Set<string>()
   const groupOf = new Map<string, string[]>()
+  const okGroups = new Map<string, string[]>()
+  const lateGroups = new Map<string, string[]>()
 
   for (const t of i.targets) {
     if (t.student_id) {
@@ -33,12 +35,19 @@ export function computeTargets(i: TargetInput): { targets: Set<string>; lateJoin
         dueDate: due,
         bajaDate: baja,
       })
+      const bucket = ok ? okGroups : baja === null ? lateGroups : null
       if (ok) targets.add(m.student_id)
       else if (baja === null) lateJoiners.add(m.student_id)
-      const gs = groupOf.get(m.student_id) ?? []
-      if (!gs.includes(t.group_id)) groupOf.set(m.student_id, [...gs, t.group_id])
+      if (bucket) {
+        const gs = bucket.get(m.student_id) ?? []
+        if (!gs.includes(t.group_id)) bucket.set(m.student_id, [...gs, t.group_id])
+      }
     }
   }
   for (const id of targets) lateJoiners.delete(id)
+  // Cada estudiante aparece solo en los grupos por los que le toca: si es destinatario
+  // por un grupo, no aparece en otro al que se unió después.
+  for (const id of targets) groupOf.set(id, okGroups.get(id) ?? [])
+  for (const id of lateJoiners) groupOf.set(id, lateGroups.get(id) ?? [])
   return { targets, lateJoiners, groupOf }
 }

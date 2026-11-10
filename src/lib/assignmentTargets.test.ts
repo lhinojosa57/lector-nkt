@@ -34,6 +34,20 @@ describe('computeTargets', () => {
     expect(res.targets.has('baja')).toBe(false)
     expect(res.lateJoiners.has('baja')).toBe(false)
   })
+  it('destinatario por un grupo y unido tarde a otro: solo cuenta en el primero', () => {
+    const r = computeTargets({
+      assignment,
+      targets: [{ group_id: 'gA', student_id: null }, { group_id: 'gB', student_id: null }],
+      membersByGroup: new Map([
+        ['gA', [{ student_id: 's', joined_at: null }]],
+        ['gB', [{ student_id: 's', joined_at: '2026-11-06T15:00:00Z' }, { student_id: 't', joined_at: '2026-11-06T15:00:00Z' }]],
+      ]),
+      bajaDate: new Map(),
+    })
+    expect(r.groupOf.get('s')).toEqual(['gA'])
+    expect(r.groupOf.get('t')).toEqual(['gB'])
+    expect(r.lateJoiners.has('t')).toBe(true)
+  })
   it('en dos grupos cuenta una vez, con ambos grupos', () => {
     expect([...res.targets].filter(x => x === 'dos')).toHaveLength(1)
     expect(res.groupOf.get('dos')).toEqual(['g1', 'g2'])
