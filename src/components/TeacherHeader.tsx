@@ -2,10 +2,10 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 
 const LINKS = [
-  { to: '/teacher', label: 'Estudiantes', end: true },
   { to: '/teacher/library', label: 'Biblioteca', end: false },
   { to: '/teacher/assignments', label: 'Asignaciones', end: false },
   { to: '/teacher/fluency', label: 'Fluidez', end: false },
+  { to: '/teacher/students', label: 'Estudiantes', end: false },
   { to: '/teacher/groups', label: 'Grupos', end: false },
   { to: '/teacher/pda', label: 'PDA', end: false },
   { to: '/teacher/settings', label: 'Configuración', end: false },
