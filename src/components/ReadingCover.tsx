@@ -43,7 +43,7 @@ export default function ReadingCover({ title, subject, coverPath, size = 'md', c
       role="img"
       lang="es"
       aria-label={`Portada de ${title}`}
-      className={`${base} flex flex-col justify-between`}
+      className={`${base} flex flex-col justify-between ${size === 'sm' ? '' : 'pb-3'}`}
       style={{ background: st.bg, color: st.fg, boxShadow: SPINE }}
     >
       <span
@@ -55,9 +55,9 @@ export default function ReadingCover({ title, subject, coverPath, size = 'md', c
       {size !== 'sm' && (
         <>
           <span className="relative px-3 pl-4 pt-3 font-body text-[10px] uppercase tracking-wider opacity-90 line-clamp-2">{subject}</span>
-          {/* El recorte va en el span interior: si llevara el padding, la 5ª línea se asomaría por él. */}
-          <span className={`relative px-3 pl-4 pb-3 font-display font-bold leading-tight ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
-            <span className="line-clamp-4 break-words hyphens-auto">{title}</span>
+          {/* Sin padding abajo: si lo llevara, la 5ª línea recortada se asomaría por él (el espacio lo da la portada). */}
+          <span className={`relative px-3 pl-4 font-display font-bold leading-tight line-clamp-4 break-words hyphens-auto ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
+            {title}
           </span>
         </>
       )}
