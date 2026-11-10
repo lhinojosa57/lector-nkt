@@ -41,7 +41,8 @@ export function assignmentContribution(a: ContributionInput, pdaGrade: Map<strin
     const group = a.students.filter(s => s.grade === g)
     const done = group.filter(s => s.completed)
     const pcts = done.map(s => s.comprehension).filter((x): x is number => x !== null)
-    const avg = pcts.length ? pcts.reduce((s, x) => s + x, 0) / pcts.length : null
+    // Redondeo a 2 decimales para que 74.999999… no pierda el logro por un error de coma flotante.
+    const avg = pcts.length ? Math.round((pcts.reduce((s, x) => s + x, 0) / pcts.length) * 100) / 100 : null
     const pdaIds = a.readingPdaIds.filter(id => {
       const pg = pdaGrade.get(id)
       return pg === null || pg === g

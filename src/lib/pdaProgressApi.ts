@@ -17,6 +17,28 @@ export interface PdaProgress {
 
 const one = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? x[0] ?? null : x ?? null)
 
+/**
+ * Lee todas las filas de una consulta `.in(columna, ids)`: parte los ids en grupos
+ * (URLs cortas) y pagina de mil en mil (PostgREST corta en 1000 filas).
+ */
+async function selectAllIn<T>(
+  ids: string[],
+  query: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100)
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await query(chunk, from, from + 999)
+      if (error) throw error
+      const rows = (data ?? []) as T[]
+      out.push(...rows)
+      if (rows.length < 1000) break
+    }
+  }
+  return out
+}
+
 export async function fetchCycles(): Promise<Cycle[]> {
   const { data, error } = await supabase.from('lec_cycles').select('cycle, starts_on, ends_on, is_current, terms').order('starts_on')
   if (error) throw error
@@ -28,9 +50,10 @@ export function cycleFor(cycles: Cycle[], ymd: string): Cycle | null {
   return cycles.find(c => c.starts_on <= ymd && ymd <= c.ends_on) ?? cycles.find(c => c.is_current) ?? null
 }
 
-export async function fetchPdaProgress(p: { groupId: string; from: string; to: string; allTeachers: boolean; teacherId: string }): Promise<PdaProgress> {
+export async function fetchPdaProgress(p: { groupId: string; cycle: string; from: string; to: string; allTeachers: boolean; teacherId: string }): Promise<PdaProgress> {
   const cycles = await fetchCycles()
-  const current = cycles.find(c => c.is_current) ?? null
+  // El ciclo elegido en el panel define los grados que se muestran.
+  const current = cycles.find(c => c.cycle === p.cycle) ?? cycles.find(c => c.is_current) ?? null
 
   const [targetsRes, membersRes, joinsRes] = await Promise.all([
     supabase
@@ -86,26 +109,26 @@ export async function fetchPdaProgress(p: { groupId: string; from: string; to: s
   // Intentos y PDA de las lecturas.
   const ids = assignments.map(a => a.id)
   const readingIds = [...new Set(assignments.map(a => a.reading_id))]
-  const [attemptsRes, pdasRes] = await Promise.all([
-    ids.length
-      ? supabase.from('lec_attempts').select('assignment_id, student_id, completed_at, comprehension_pct').in('assignment_id', ids).not('completed_at', 'is', null)
-      : Promise.resolve({ data: [], error: null }),
-    readingIds.length
-      ? supabase.from('lec_reading_pdas').select('reading_id, pda_id, lec_pda(grade)').in('reading_id', readingIds)
-      : Promise.resolve({ data: [], error: null }),
+  type AttemptRow = { assignment_id: string; student_id: string; completed_at: string; comprehension_pct: number | null }
+  type RP = { reading_id: string; pda_id: string; lec_pda: { grade: PdaGrade | null } | { grade: PdaGrade | null }[] | null }
+  const [attemptRows, pdaRows] = await Promise.all([
+    selectAllIn<AttemptRow>(ids, (chunk, from, to) =>
+      supabase.from('lec_attempts').select('assignment_id, student_id, completed_at, comprehension_pct')
+        .in('assignment_id', chunk).not('completed_at', 'is', null).order('id').range(from, to)),
+    selectAllIn<RP>(readingIds, (chunk, from, to) =>
+      supabase.from('lec_reading_pdas').select('reading_id, pda_id, lec_pda(grade)')
+        .in('reading_id', chunk).order('reading_id').order('pda_id').range(from, to)),
   ])
-  for (const r of [attemptsRes, pdasRes]) if (r.error) throw r.error
 
   const first = new Map<string, { at: string; pct: number | null }>()
-  for (const t of (attemptsRes.data ?? []) as { assignment_id: string; student_id: string; completed_at: string; comprehension_pct: number | null }[]) {
+  for (const t of attemptRows) {
     const k = `${t.assignment_id}|${t.student_id}`
     const prev = first.get(k)
     if (!prev || t.completed_at < prev.at) first.set(k, { at: t.completed_at, pct: t.comprehension_pct === null ? null : Number(t.comprehension_pct) })
   }
   const pdaGrade = new Map<string, PdaGrade | null>()
   const pdasByReading = new Map<string, string[]>()
-  type RP = { reading_id: string; pda_id: string; lec_pda: { grade: PdaGrade | null } | { grade: PdaGrade | null }[] | null }
-  for (const r of (pdasRes.data ?? []) as unknown as RP[]) {
+  for (const r of pdaRows) {
     pdaGrade.set(r.pda_id, one(r.lec_pda)?.grade ?? null)
     pdasByReading.set(r.reading_id, [...(pdasByReading.get(r.reading_id) ?? []), r.pda_id])
   }

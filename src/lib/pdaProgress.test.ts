@@ -23,6 +23,10 @@ describe('assignmentContribution', () => {
     const r = assignmentContribution({ ...base, students: [st('a', 1, true, 75), st('b', 1, true, 75), st('c', 1, true, 75), st('d', 1), st('e', 1)] }, pdaGrade)
     expect(r[0].state).toBe('logro')
   })
+  it('decimales: 66.67 y 83.33 promedian 75 → logro', () => {
+    const r = assignmentContribution({ ...base, students: [st('a', 1, true, 66.67), st('b', 1, true, 83.33)] }, pdaGrade)
+    expect(r[0].state).toBe('logro')
+  })
   it('menos de 60% → pendiente (se registra como intento)', () => {
     const r = assignmentContribution({ ...base, students: [st('a', 1, true, 100), st('b', 1, true, 100), st('c', 1), st('d', 1), st('e', 1)] }, pdaGrade)
     expect(r[0].state).toBe('pendiente')

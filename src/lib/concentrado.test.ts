@@ -37,4 +37,7 @@ describe('concentradoFileName', () => {
   it('sin acentos ni espacios', () => {
     expect(concentradoFileName('1° A Virtual', 1, 'Trimestre 1')).toBe('concentrado-1-a-virtual-1o-trimestre-1.xlsx')
   })
+  it('varios grados: sin grado en el nombre, aunque el grupo parezca un grado', () => {
+    expect(concentradoFileName('1o A', null, 'T1', 'pdf')).toBe('concentrado-1o-a-t1.pdf')
+  })
 })

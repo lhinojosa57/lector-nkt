@@ -44,6 +44,7 @@ export function buildConcentradoRows(catalog: Pda[], statuses: PdaStatusMap, gra
 
 const slug = (s: string) => fold(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-export function concentradoFileName(grupo: string, grado: PdaGrade, periodo: string): string {
-  return `concentrado-${slug(grupo)}-${grado}o-${slug(periodo)}.xlsx`
+/** Con varios grados (grado null) el nombre no lleva grado. */
+export function concentradoFileName(grupo: string, grado: PdaGrade | null, periodo: string, ext: 'xlsx' | 'pdf' = 'xlsx'): string {
+  return ['concentrado', slug(grupo), grado ? `${grado}o` : '', slug(periodo)].filter(Boolean).join('-') + `.${ext}`
 }

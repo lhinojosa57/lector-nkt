@@ -5,6 +5,8 @@
 --
 -- Cómo aplicarla: PRIMERO corre 2026-11-10_pda_esquema.sql. Después pega todo
 -- este archivo en el SQL Editor → Run. Se puede correr dos veces sin duplicar.
+-- Ojo: si después se corrige el texto o el código de un PDA en el catálogo, la
+-- fila vieja NO se actualiza sola (se agregaría una nueva): hay que corregirla a mano.
 -- Total: 618 PDA.
 -- =====================================================================
 

@@ -32,6 +32,7 @@ export default function PdaPanel() {
   const [groups, setGroups] = useState<ReadingGroup[]>([])
   const [groupId, setGroupId] = useState('')
   const [cycles, setCycles] = useState<Cycle[]>([])
+  const [cycleId, setCycleId] = useState('')
   const [period, setPeriod] = useState('ciclo')
   const [rangeFrom, setRangeFrom] = useState('')
   const [rangeTo, setRangeTo] = useState('')
@@ -71,7 +72,7 @@ export default function PdaPanel() {
     return () => { cancelled = true }
   }, [profile?.id])
 
-  const cycle = cycles.find(c => c.is_current) ?? null
+  const cycle = cycles.find(c => c.cycle === cycleId) ?? cycles.find(c => c.is_current) ?? null
   const range = useMemo((): { from: string; to: string; label: string } | null => {
     if (!cycle) return null
     if (period === 'ciclo') return { from: cycle.starts_on, to: cycle.ends_on, label: `Ciclo ${cycle.cycle}` }
@@ -86,8 +87,8 @@ export default function PdaPanel() {
   useEffect(() => {
     if (!groupId || !range || !profile?.id) return
     let cancelled = false
-    const key = `${groupId}|${range.from}|${range.to}|${allTeachers}`
-    fetchPdaProgress({ groupId, from: range.from, to: range.to, allTeachers, teacherId: profile.id })
+    const key = `${groupId}|${cycle?.cycle}|${range.from}|${range.to}|${allTeachers}`
+    fetchPdaProgress({ groupId, cycle: cycle?.cycle ?? '', from: range.from, to: range.to, allTeachers, teacherId: profile.id })
       .then(d => {
         if (cancelled) return
         setData(d)
@@ -96,14 +97,17 @@ export default function PdaPanel() {
       })
       .catch(err => {
         console.error(err)
-        if (!cancelled) setError('No se pudo calcular el avance de PDA.')
+        if (!cancelled) {
+          setData(null)
+          setError('No se pudo calcular el avance de PDA.')
+        }
       })
       .finally(() => { if (!cancelled) setResultKey(key) })
     return () => { cancelled = true }
-  }, [groupId, range, allTeachers, profile?.id])
+  }, [groupId, cycle, range, allTeachers, profile?.id])
 
   // Cargando mientras el resultado no corresponde a los filtros actuales.
-  const currentKey = groupId && range ? `${groupId}|${range.from}|${range.to}|${allTeachers}` : ''
+  const currentKey = groupId && range ? `${groupId}|${cycle?.cycle}|${range.from}|${range.to}|${allTeachers}` : ''
   const loading = initLoading || (currentKey !== '' && resultKey !== currentKey)
 
   const statuses: PdaStatusMap = (grade && data?.byGrade.get(grade)) || new Map()
@@ -121,6 +125,14 @@ export default function PdaPanel() {
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </label>
+          {cycles.length > 1 && (
+            <label className="block">
+              <span className="font-body text-xs text-ink-600 block">Ciclo</span>
+              <select value={cycle?.cycle ?? ''} onChange={e => { setCycleId(e.target.value); setPeriod('ciclo') }} className={selectClass}>
+                {cycles.map(c => <option key={c.cycle} value={c.cycle}>{c.cycle}{c.is_current ? ' (actual)' : ''}</option>)}
+              </select>
+            </label>
+          )}
           <label className="block">
             <span className="font-body text-xs text-ink-600 block">Periodo</span>
             <select value={period} onChange={e => setPeriod(e.target.value)} className={selectClass}>
@@ -154,11 +166,12 @@ export default function PdaPanel() {
 
         {error && <p role="alert" className="font-body text-sm text-crimson-500">{error}</p>}
         {!cycle && !loading && !error && <p className="font-body text-sm text-ink-500">No hay un ciclo escolar actual configurado.</p>}
+        {cycle && !range && <p className="font-body text-sm text-ink-500">Elige las dos fechas del rango (la primera antes que la segunda).</p>}
         {groups.length === 0 && !loading && !error && <p className="font-body text-sm text-ink-500">Todavía no tienes grupos activos.</p>}
 
         {loading ? (
           <div className="p-10 flex justify-center"><div className="spinner" /></div>
-        ) : data && !grade ? (
+        ) : !range || error ? null : data && !grade ? (
           <p className="font-body text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-lg px-4 py-3">
             Ponles grado en Estudiantes para ver su avance{data.studentsWithoutGrade ? ` (${data.studentsWithoutGrade} sin grado)` : ''}.
           </p>
@@ -249,10 +262,10 @@ function ReportDialog({ onClose, catalog, data, grades, header }: {
       const h = { escuela: s.school_name ?? '', cct: s.cct ?? '', ...header }
       const gs = grades.filter(g => selGrades.has(g))
       const sheets = gs.map(g => ({ grade: g, rows: buildConcentradoRows(catalog, data.byGrade.get(g) ?? new Map(), g, [...discs]) }))
-      const name = concentradoFileName(header.grupo, gs.length === 1 ? gs[0] : gs[0], header.periodo)
+      const name = concentradoFileName(header.grupo, gs.length === 1 ? gs[0] : null, header.periodo, kind)
       const exp = await import('@/lib/concentradoExport')
-      if (kind === 'xlsx') await exp.downloadConcentradoXlsx(h, sheets, gs.length > 1 ? name.replace(/-\do-/, '-') : name)
-      else await exp.downloadConcentradoPdf(h, sheets, (gs.length > 1 ? name.replace(/-\do-/, '-') : name).replace(/\.xlsx$/, '.pdf'))
+      if (kind === 'xlsx') await exp.downloadConcentradoXlsx(h, sheets, name)
+      else await exp.downloadConcentradoPdf(h, sheets, name)
     } catch (err) {
       console.error(err)
       setError('No se pudo generar el archivo. Inténtalo de nuevo.')
