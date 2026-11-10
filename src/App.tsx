@@ -12,6 +12,7 @@ import SessionPage from '@/pages/session/SessionPage'
 import Library from '@/pages/teacher/Library'
 import ReadingDetail from '@/pages/teacher/ReadingDetail'
 import Assignments from '@/pages/teacher/Assignments'
+import AssignmentResults from '@/pages/teacher/AssignmentResults'
 import StudentLibrary from '@/pages/student/StudentLibrary'
 import ReadingSession from '@/pages/student/ReadingSession'
 import ConsentPage from '@/pages/student/ConsentPage'
@@ -113,6 +114,12 @@ export default function App() {
       <Route path="/teacher/assignments" element={
         <ProtectedRoute role="teacher">
           <Assignments />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/assignments/:assignmentId/results" element={
+        <ProtectedRoute role="teacher">
+          <AssignmentResults />
         </ProtectedRoute>
       } />
 
