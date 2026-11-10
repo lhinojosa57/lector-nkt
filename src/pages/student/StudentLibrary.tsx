@@ -53,7 +53,7 @@ export default function StudentLibrary() {
     <div className="min-h-screen bg-sepia-100">
       <div className="bg-parchment-50 border-b border-parchment-200 px-4 sm:px-6 py-4">
         <div className="max-w-3xl mx-auto">
-          <button onClick={() => navigate('/student')} className="font-body text-xs text-ink-400 hover:text-ink-600">← Mis lecturas</button>
+          <button onClick={() => navigate('/student')} className="font-body text-xs text-ink-400 hover:text-ink-600">← Mi biblioteca</button>
           <h1 className="font-display text-xl font-bold text-ink-900 mt-1">Entrenamiento libre</h1>
           <p className="font-body text-xs text-ink-500">Lecturas de tu nivel. Elige la que te llame la atención.</p>
         </div>

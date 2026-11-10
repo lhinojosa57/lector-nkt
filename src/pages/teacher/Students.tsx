@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import PasteListModal from '@/components/PasteListModal'
 import { levelName } from '@/lib/lec'
@@ -29,6 +30,7 @@ export default function Students() {
   const [showInactive, setShowInactive] = useState(false)
   const [showPaste, setShowPaste] = useState(false)
   const [purging, setPurging] = useState<RosterRow | null>(null)
+  const [levelUps, setLevelUps] = useState<{ student_id: string; language: string; to_level: number }[]>([])
 
   const load = useCallback(async () => {
     try {
@@ -36,6 +38,15 @@ export default function Students() {
       setCycle(c)
       setRows(await fetchRoster(c.cycle))
       setError('')
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: ups, error: upsError } = await supabase
+        .from('lec_level_changes')
+        .select('student_id, language, to_level')
+        .eq('reason', 'auto')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+      if (upsError) console.error('No se pudieron leer las subidas de nivel', upsError)
+      setLevelUps((ups ?? []) as { student_id: string; language: string; to_level: number }[])
     } catch (err) {
       console.error(err)
       setError('No se pudieron cargar los estudiantes.')
@@ -139,6 +150,15 @@ export default function Students() {
 
         {notice && <p role="status" className="font-body text-sm bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-4 py-2">{notice}</p>}
         {error && <p role="alert" className="font-body text-sm text-crimson-500">{error}</p>}
+        {levelUps.length > 0 && (
+          <p role="status" className="font-body text-sm bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-lg px-4 py-2">
+            🎉 Subieron de nivel en los últimos 7 días:{' '}
+            {levelUps.map(u => {
+              const r = rows.find(x => x.id === u.student_id)
+              return `${r?.full_name ?? r?.email ?? 'Estudiante'} → Nivel ${u.to_level} (${u.language === 'es' ? 'español' : 'inglés'})`
+            }).join(', ')}
+          </p>
+        )}
         {withoutGrade > 0 && (
           <p className="font-body text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-lg px-4 py-2">
             {withoutGrade} {withoutGrade === 1 ? 'estudiante sin grado' : 'estudiantes sin grado'}. Ponles grado para que sus lecturas cuenten en el cumplimiento.
