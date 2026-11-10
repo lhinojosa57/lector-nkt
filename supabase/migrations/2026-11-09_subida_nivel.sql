@@ -281,16 +281,16 @@ begin
   delete from public.lec_assignment_targets where student_id = v_student;
   delete from public.reading_group_members where student_id = v_student;
 
-  -- Nivel 2 provisional, desde ayer.
+  -- Nivel 2 provisional desde hace 1 segundo: así no se mezclan sus lecturas reales.
   insert into public.lec_student_levels (student_id, language, level, is_provisional, updated_at)
-  values (v_student, 'es', 2, true, now() - interval '1 day')
+  values (v_student, 'es', 2, true, now() - interval '1 second')
   on conflict (student_id, language) do update
-    set level = 2, is_provisional = true, updated_at = now() - interval '1 day';
+    set level = 2, is_provisional = true, updated_at = now() - interval '1 second';
 
   -- Releer: 5 veces la lectura 1, todo correcto.
   for i in 1..5 loop
     insert into public.lec_attempts (student_id, version_id, mode, is_diagnostic, started_at, completed_at)
-    values (v_student, v_versions[1], 'silent', false, now() - interval '3 hours', now() - interval '2 hours' + i * interval '1 minute')
+    values (v_student, v_versions[1], 'silent', false, now() - interval '1 second', now() - interval '900 milliseconds' + i * interval '1 millisecond')
     returning id into v_attempt;
     insert into public.lec_answers (attempt_id, question_id, selected_option, is_correct)
     select v_attempt, q.id, 'a', true from public.lec_questions q where q.version_id = v_versions[1];
@@ -300,7 +300,7 @@ begin
   -- Las lecturas 2 a 5, una vez cada una, todo correcto.
   for i in 2..5 loop
     insert into public.lec_attempts (student_id, version_id, mode, is_diagnostic, started_at, completed_at)
-    values (v_student, v_versions[i], 'silent', false, now() - interval '2 hours', now() - interval '1 hour' + i * interval '1 minute')
+    values (v_student, v_versions[i], 'silent', false, now() - interval '1 second', now() - interval '500 milliseconds' + i * interval '1 millisecond')
     returning id into v_attempt;
     insert into public.lec_answers (attempt_id, question_id, selected_option, is_correct)
     select v_attempt, q.id, 'a', true from public.lec_questions q where q.version_id = v_versions[i];
