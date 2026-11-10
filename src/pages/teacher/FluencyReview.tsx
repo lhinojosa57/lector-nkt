@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { tryLevelUp } from '@/lib/levelApi'
 import { useAuth } from '@/lib/auth'
 import TeacherHeader from '@/components/TeacherHeader'
 import AudioReviewPlayer from '@/components/AudioReviewPlayer'
@@ -10,6 +11,7 @@ import { EXPRESSION_LEVELS, accuracyBand, fluencyMetrics, tokenizeWords } from '
 type Mark = 'errors' | 'last'
 
 interface Loaded {
+  studentId: string
   studentName: string
   title: string
   language: Language
@@ -49,7 +51,7 @@ export default function FluencyReview() {
       const { data: a, error } = await supabase
         .from('lec_attempts')
         .select(`
-          id, drive_file_id, audio_seconds, comprehension_pct,
+          id, student_id, drive_file_id, audio_seconds, comprehension_pct,
           profiles(full_name, email),
           lec_versions(level, body, lec_readings(title, language)),
           lec_fluency_reviews(words_read, error_positions, wcpm, accuracy_pct, expression, comment)
@@ -63,7 +65,7 @@ export default function FluencyReview() {
         return
       }
       type Raw = {
-        drive_file_id: string; audio_seconds: number | null; comprehension_pct: number | null
+        student_id: string; drive_file_id: string; audio_seconds: number | null; comprehension_pct: number | null
         profiles: { full_name: string | null; email: string } | { full_name: string | null; email: string }[] | null
         lec_versions: { level: number; body: string; lec_readings: { title: string; language: Language } | { title: string; language: Language }[] | null } | null
         lec_fluency_reviews:
@@ -76,6 +78,7 @@ export default function FluencyReview() {
       const v = one(r.lec_versions)
       const rd = one(v?.lec_readings ?? null)
       setData({
+        studentId: r.student_id,
         studentName: p?.full_name ?? p?.email ?? 'Estudiante',
         title: rd?.title ?? 'Lectura',
         language: rd?.language ?? 'es',
@@ -156,6 +159,7 @@ export default function FluencyReview() {
       return
     }
     setSavedOk(true)
+    if (data) void tryLevelUp(data.studentId, data.language)
   }
 
   if (loadError) {

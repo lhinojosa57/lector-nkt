@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { tryLevelUp } from '@/lib/levelApi'
 import { useAuth } from '@/lib/auth'
 import AloudRecorder from '@/components/AloudRecorder'
 import GuidedReader from '@/components/GuidedReader'
@@ -223,6 +224,7 @@ export default function ReadingSession() {
       setStep('error')
       return
     }
+    if (profile?.id && reading) void tryLevelUp(profile.id, reading.language)
     setStep('close')
   }
 
