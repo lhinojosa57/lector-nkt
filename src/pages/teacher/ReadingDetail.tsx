@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import TeacherHeader from '@/components/TeacherHeader'
 import AssignModal from '@/components/AssignModal'
 import CoverPanel from '@/components/CoverPanel'
+import PdaPicker from '@/components/PdaPicker'
 import {
   LANGUAGES, SKILL_LABELS, asArray, levelName,
   type LecQuestion, type LecReading, type LecVersion, type QuestionOption, type VocabularyItem,
@@ -173,6 +174,8 @@ export default function ReadingDetail() {
                 </aside>
               </div>
             )}
+
+            <PdaPicker readingId={reading.id} />
 
             <div className="bg-parchment-50 border border-parchment-200 rounded-xl p-5">
               <p className="font-display font-semibold text-ink-800 mb-3">Preguntas ({versionQuestions.length})</p>
