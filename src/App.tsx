@@ -13,6 +13,8 @@ import Library from '@/pages/teacher/Library'
 import ReadingDetail from '@/pages/teacher/ReadingDetail'
 import Assignments from '@/pages/teacher/Assignments'
 import AssignmentResults from '@/pages/teacher/AssignmentResults'
+import PdaPanel from '@/pages/teacher/PdaPanel'
+import Settings from '@/pages/teacher/Settings'
 import StudentLibrary from '@/pages/student/StudentLibrary'
 import ReadingSession from '@/pages/student/ReadingSession'
 import ConsentPage from '@/pages/student/ConsentPage'
@@ -114,6 +116,18 @@ export default function App() {
       <Route path="/teacher/assignments" element={
         <ProtectedRoute role="teacher">
           <Assignments />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/pda" element={
+        <ProtectedRoute role="teacher">
+          <PdaPanel />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/teacher/settings" element={
+        <ProtectedRoute role="teacher">
+          <Settings />
         </ProtectedRoute>
       } />
 
