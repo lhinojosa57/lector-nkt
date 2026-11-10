@@ -77,7 +77,10 @@ export default function App() {
       } />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      <Route path="/teacher" element={
+      {/* El docente entra directo a la Biblioteca. */}
+      <Route path="/teacher" element={<Navigate to="/teacher/library" replace />} />
+
+      <Route path="/teacher/students" element={
         <ProtectedRoute role="teacher">
           <Students />
         </ProtectedRoute>
