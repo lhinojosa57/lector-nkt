@@ -44,9 +44,30 @@ export async function downloadConcentradoXlsx(h: ConcentradoHeader, sheets: Conc
   XLSX.writeFile(wb, filename)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AutoTableFn = (doc: any, options: any) => unknown
+
+/**
+ * jspdf-autotable llega con formas distintas según cómo se empaquete (ESM, CommonJS
+ * envuelto por Vite…). En el navegador "default" no era la función: se busca aquí.
+ */
+export function resolveAutoTable(mod: unknown): AutoTableFn {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const m = mod as any
+  const candidates = [m?.default, m?.default?.default, m?.autoTable, m?.default?.autoTable]
+  const found = candidates.find(c => typeof c === 'function')
+  if (found) return found as AutoTableFn
+  const apply = m?.applyPlugin ?? m?.default?.applyPlugin
+  if (typeof apply === 'function') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (doc: any, options: any) => { apply(doc.constructor); return doc.autoTable(options) }
+  }
+  throw new Error('No se pudo cargar la librería del PDF')
+}
+
 export async function downloadConcentradoPdf(h: ConcentradoHeader, sheets: ConcentradoSheet[], filename: string): Promise<void> {
   const { jsPDF } = await import('jspdf')
-  const autoTable = (await import('jspdf-autotable')).default
+  const autoTable = resolveAutoTable(await import('jspdf-autotable'))
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' })
   sheets.forEach((s, i) => {
     if (i > 0) doc.addPage()
