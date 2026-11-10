@@ -1,5 +1,6 @@
 // Lógica pura de "Mi biblioteca" del estudiante (estantes, sugerencias e indicadores).
 import type { Language, ReadingMode } from './lec'
+import type { LevelProgress } from './levelApi'
 
 export interface SuggestionCandidate {
   id: string
@@ -108,4 +109,21 @@ export function pagesFromWords(words: number): number {
 /** De la más reciente a la más antigua por fecha de asignación. */
 export function sortPendingAssignments<T extends { created_at: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+/**
+ * Lo que la barra no dice: cuando ya hay suficientes en verde pero el promedio no llega,
+ * o cuando ya hizo el 80% pero dejó más de 1 sin hacer.
+ */
+export function levelPathHints(p: LevelProgress): string[] {
+  const hints: string[] = []
+  const c = p.comprehension
+  if (c.considered >= c.needCount && c.greens >= c.needGreens && !c.ok && c.avg !== null) {
+    hints.push(`Sube tu promedio: llevas ${Math.round(c.avg)}% y necesitas 80%`)
+  }
+  const k = p.compliance
+  if (k.counted > 0 && !k.ok && k.completed / k.counted >= 0.8 && k.overduePending > 1) {
+    hints.push(`Tienes ${k.overduePending} asignadas sin hacer; puedes dejar máximo 1`)
+  }
+  return hints
 }

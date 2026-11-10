@@ -1,5 +1,6 @@
 import { levelName, type Language } from '@/lib/lec'
 import type { LevelProgress } from '@/lib/levelApi'
+import { levelPathHints } from '@/lib/shelves'
 
 function Bar({ label, value, ok }: { label: string; value: number; ok: boolean }) {
   const pct = Math.max(0, Math.min(100, Math.round(value * 100)))
@@ -54,6 +55,9 @@ export default function LevelPathCard({ language, progress }: { language: Langua
       <p className="font-display text-sm font-semibold text-ink-800">Camino al Nivel {next} · {levelName(next)}</p>
       <Bar label={compLabel} value={compValue} ok={c.ok} />
       <Bar label={kLabel} value={kValue} ok={k.ok} />
+      {levelPathHints(progress).map(h => (
+        <p key={h} className="font-body text-xs text-ink-700">{h}</p>
+      ))}
       {!progress.accuracy.ok && (
         <p className="font-body text-xs text-ink-700">🎙️ Cuida tu precisión en voz alta: necesitas 95% o más</p>
       )}

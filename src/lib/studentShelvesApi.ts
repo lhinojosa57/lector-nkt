@@ -127,7 +127,8 @@ export async function fetchStudentShelves(studentId: string): Promise<StudentShe
       comment: f?.comment ?? null,
       words: v.word_count ?? 0,
     })
-    if (f) reviews.push({ language, reviewedAt: f.reviewed_at, wcpm: Number(f.wcpm) })
+    // Se ordena por cuándo leyó, no por cuándo revisó el docente (puede revisar en desorden).
+    if (f) reviews.push({ language, reviewedAt: a.completed_at, wcpm: Number(f.wcpm) })
   }
 
   // ---------- Asignadas pendientes ----------

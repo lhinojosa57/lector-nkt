@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickSuggestions, groupDoneByReading, fluencyGain, pagesFromWords, sortPendingAssignments, type DoneAttempt } from './shelves'
+import { pickSuggestions, groupDoneByReading, fluencyGain, pagesFromWords, sortPendingAssignments, levelPathHints, type DoneAttempt } from './shelves'
 
 const c = (id: string, language: 'es' | 'en', levels: number[]) => ({ id, language, levels })
 
@@ -67,5 +67,24 @@ describe('sortPendingAssignments', () => {
   it('la más reciente primero', () => {
     const r = sortPendingAssignments([{ created_at: '2026-11-01T00:00:00Z' }, { created_at: '2026-11-08T00:00:00Z' }])
     expect(r[0].created_at).toBe('2026-11-08T00:00:00Z')
+  })
+})
+
+describe('levelPathHints', () => {
+  const base = {
+    level: 2, provisional: false, max: false,
+    comprehension: { considered: 5, greens: 4, avg: 85, needGreens: 4, needCount: 5, ok: true },
+    accuracy: { reviewed: 0, ok: true },
+    compliance: { counted: 10, completed: 9, overduePending: 1, pct: 90, ok: true },
+    eligible: true,
+  }
+  it('sin pendientes, sin pistas', () => expect(levelPathHints(base)).toEqual([]))
+  it('verdes suficientes pero promedio bajo', () => {
+    expect(levelPathHints({ ...base, comprehension: { ...base.comprehension, avg: 76, ok: false } }))
+      .toEqual(['Sube tu promedio: llevas 76% y necesitas 80%'])
+  })
+  it('80% cumplido pero 2 sin hacer', () => {
+    expect(levelPathHints({ ...base, compliance: { counted: 10, completed: 8, overduePending: 2, pct: 80, ok: false } }))
+      .toEqual(['Tienes 2 asignadas sin hacer; puedes dejar máximo 1'])
   })
 })

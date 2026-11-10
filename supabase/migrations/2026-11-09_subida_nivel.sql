@@ -3,11 +3,11 @@
 -- Diseño: docs/superpowers/specs/2026-11-09-biblioteca-estantes-pda-design.md (6.3 y 6.8)
 --
 -- Cómo aplicarla: Supabase Dashboard → SQL Editor → pegar todo → Run.
--- Es SOLO ADITIVA: agrega la columna seen_at a lec_level_changes y crea tres
--- funciones. Se puede correr dos veces sin daño.
+-- Es SOLO ADITIVA: agrega la columna seen_at a lec_level_changes, crea tres
+-- funciones y un candado contra trampas en lec_attempts. Se puede correr dos veces sin daño.
 --
 -- Regla (por idioma), solo para quien ya hizo su diagnóstico (no provisional):
---   1. Comprensión: últimos 5 intentos completados en su nivel actual (sin
+--   1. Comprensión: últimas 5 lecturas distintas en su nivel actual (primer intento de cada una, sin
 --      diagnósticos, con preguntas, después de su último cambio de nivel):
 --      al menos 4 con 75% o más y promedio de 80% o más. El porcentaje se
 --      recalcula aquí desde lec_answers.
@@ -52,11 +52,10 @@ begin
     v_level := 2; v_prov := true; v_since := '-infinity';
   end if;
 
-  -- 1 y 2. Últimos 5 intentos en su nivel.
-  with last5 as (
-    select a.id, a.mode,
-           100.0 * (select count(*) from lec_answers ans where ans.attempt_id = a.id and ans.is_correct)
-                 / nullif((select count(*) from lec_questions q where q.version_id = a.version_id), 0) as pct
+  -- 1 y 2. Últimas 5 lecturas DISTINTAS en su nivel. De cada lectura cuenta solo
+  -- su primer intento: releer el mismo texto (ya con las respuestas vistas) no suma.
+  with firsts as (
+    select distinct on (v.reading_id) a.id, a.mode, a.version_id, a.completed_at
     from lec_attempts a
     join lec_versions v on v.id = a.version_id
     join lec_readings r on r.id = v.reading_id
@@ -67,7 +66,14 @@ begin
       and r.language = p_language
       and a.completed_at > v_since
       and exists (select 1 from lec_questions q where q.version_id = a.version_id)
-    order by a.completed_at desc
+    order by v.reading_id, a.completed_at asc
+  ),
+  last5 as (
+    select fi.id, fi.mode,
+           100.0 * (select count(*) from lec_answers ans where ans.attempt_id = fi.id and ans.is_correct)
+                 / nullif((select count(*) from lec_questions q where q.version_id = fi.version_id), 0) as pct
+    from firsts fi
+    order by fi.completed_at desc
     limit 5
   )
   select count(*),
@@ -85,8 +91,9 @@ begin
   with closed as (
     select asg.id,
            exists (select 1 from lec_attempts at2
+                   join lec_versions v2 on v2.id = at2.version_id and v2.reading_id = asg.reading_id
                    where at2.assignment_id = asg.id and at2.student_id = p_student
-                     and at2.completed_at is not null) as done
+                     and at2.completed_at is not null and not at2.is_diagnostic) as done
     from lec_assignments asg
     join lec_readings r on r.id = asg.reading_id
     where r.language = p_language
@@ -179,46 +186,98 @@ $$;
 revoke execute on function public.lec_mark_level_seen(uuid) from public, anon;
 grant execute on function public.lec_mark_level_seen(uuid) to authenticated;
 
+-- ---------- Candado: el estudiante no puede alterar sus intentos ----------
+-- La política de actualización de lec_attempts permite al estudiante editar su
+-- propio intento (la app guarda ahí el audio, los tiempos y la reflexión). Este
+-- candado evita trampas desde el navegador: no se puede cambiar de lectura, de
+-- modo ni de asignación, y un intento terminado ya no cambia su resultado.
+create or replace function public.lec_attempts_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null or public.lec_is_teacher() then
+    return new;
+  end if;
+  if new.student_id    is distinct from old.student_id
+  or new.version_id    is distinct from old.version_id
+  or new.assignment_id is distinct from old.assignment_id
+  or new.mode          is distinct from old.mode
+  or new.is_diagnostic is distinct from old.is_diagnostic
+  or new.started_at    is distinct from old.started_at then
+    raise exception 'No se puede cambiar la lectura, el modo ni la asignación de un intento';
+  end if;
+  if old.completed_at is not null
+  and (new.completed_at      is distinct from old.completed_at
+    or new.comprehension_pct is distinct from old.comprehension_pct
+    or new.reading_seconds   is distinct from old.reading_seconds
+    or new.audio_seconds     is distinct from old.audio_seconds) then
+    raise exception 'Este intento ya se terminó';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists lec_attempts_guard on public.lec_attempts;
+create trigger lec_attempts_guard
+  before update on public.lec_attempts
+  for each row execute function public.lec_attempts_guard();
+
 -- ---------- Verificación ----------
--- Esperado: seen_at = 1; funciones = 3
+-- Esperado: seen_at = 1; funciones = 4; candado = 1
 select
   (select count(*) from information_schema.columns
      where table_schema = 'public' and table_name = 'lec_level_changes' and column_name = 'seen_at') as seen_at,
   (select count(*) from pg_proc
-     where proname in ('lec_level_progress', 'lec_try_level_up', 'lec_mark_level_seen')) as funciones;
+     where proname in ('lec_level_progress', 'lec_try_level_up', 'lec_mark_level_seen', 'lec_attempts_guard')) as funciones,
+  (select count(*) from pg_trigger where tgname = 'lec_attempts_guard') as candado;
 
 
 -- =====================================================================
--- PRUEBA DE LA REGLA (opcional). Copia desde "begin;" hasta "rollback;",
--- pégalo en una consulta nueva y córrelo. Todo se deshace al final: no
--- cambia nada real.
--- Esperado: a = null, b = 3, c = null, nivel_final = 3, cambios_auto = 1
+-- PRUEBA DE LA REGLA (opcional). Copia desde "do $$" hasta el último "$$;",
+-- pégalo en una consulta nueva y córrelo.
+--
+-- Va a salir un ERROR a propósito: así se deshace todo y no cambia nada real.
+-- Lee el mensaje del error. Debe decir:
+--   RESULTADO releer=1 a=null b=3 c=null nivel_final=3 cambios_auto=1
+--
+-- Qué prueba (con 5 lecturas de mentira, en borrador, creadas solo aquí):
+--   releer: leer 5 veces el mismo texto cuenta como 1 lectura
+--   a: con nivel provisional no sube aunque cumpla todo
+--   b: ya con diagnóstico, sube de 2 a 3
+--   c: una segunda llamada ya no sube
 -- =====================================================================
 /*
-begin;
-
-create temp table t_res (paso text, valor int) on commit drop;
-
 do $$
 declare
   v_teacher uuid := (select id from public.profiles where role = 'teacher' order by email limit 1);
   v_student uuid := (select id from public.profiles where email = 'estudiante_prueba@nikolatesla.edu.mx');
+  v_versions uuid[] := '{}';
+  v_reading uuid;
   v_version uuid;
   v_attempt uuid;
+  r_releer int; r_a int; r_b int; r_c int; r_nivel int; r_auto int;
   i int;
 begin
+  if v_student is null then raise exception 'No existe estudiante_prueba@nikolatesla.edu.mx'; end if;
+
   -- Actuar como docente para las funciones.
   perform set_config('request.jwt.claims', json_build_object('sub', v_teacher, 'role', 'authenticated')::text, true);
 
-  -- La versión de nivel 2 en español (publicada) con más preguntas.
-  select v.id into v_version
-  from public.lec_versions v
-  join public.lec_readings r on r.id = v.reading_id
-  where v.level = 2 and r.language = 'es' and r.status = 'published'
-  order by (select count(*) from public.lec_questions q where q.version_id = v.id) desc
-  limit 1;
+  -- 5 lecturas de prueba (borrador), nivel 2, español, con 1 pregunta cada una.
+  for i in 1..5 loop
+    insert into public.lec_readings (title, language, subject, status)
+    values ('PRUEBA subida de nivel ' || i, 'es', 'Otra', 'draft')
+    returning id into v_reading;
+    insert into public.lec_versions (reading_id, level, body, word_count)
+    values (v_reading, 2, 'Texto de prueba.', 3)
+    returning id into v_version;
+    insert into public.lec_questions (version_id, skill, text, options, correct_option)
+    values (v_version, 'literal', '¿Pregunta?', '[{"id":"a","text":"Sí"},{"id":"b","text":"No"}]', 'a');
+    v_versions := v_versions || v_version;
+  end loop;
 
-  -- Aislar el cumplimiento: sin asignaciones ni grupos (se deshace al final).
+  -- Aislar el cumplimiento: sin asignaciones ni grupos.
   delete from public.lec_assignment_targets where student_id = v_student;
   delete from public.reading_group_members where student_id = v_student;
 
@@ -228,34 +287,37 @@ begin
   on conflict (student_id, language) do update
     set level = 2, is_provisional = true, updated_at = now() - interval '1 day';
 
-  -- 5 intentos con todo correcto, hace unas horas.
+  -- Releer: 5 veces la lectura 1, todo correcto.
   for i in 1..5 loop
     insert into public.lec_attempts (student_id, version_id, mode, is_diagnostic, started_at, completed_at)
-    values (v_student, v_version, 'silent', false, now() - interval '3 hours', now() - interval '2 hours' + i * interval '1 minute')
+    values (v_student, v_versions[1], 'silent', false, now() - interval '3 hours', now() - interval '2 hours' + i * interval '1 minute')
     returning id into v_attempt;
     insert into public.lec_answers (attempt_id, question_id, selected_option, is_correct)
-    select v_attempt, q.id, coalesce(q.correct_option, 'a'), true
-    from public.lec_questions q where q.version_id = v_version;
+    select v_attempt, q.id, 'a', true from public.lec_questions q where q.version_id = v_versions[1];
+  end loop;
+  r_releer := (public.lec_level_progress(v_student, 'es') -> 'comprehension' ->> 'considered')::int;
+
+  -- Las lecturas 2 a 5, una vez cada una, todo correcto.
+  for i in 2..5 loop
+    insert into public.lec_attempts (student_id, version_id, mode, is_diagnostic, started_at, completed_at)
+    values (v_student, v_versions[i], 'silent', false, now() - interval '2 hours', now() - interval '1 hour' + i * interval '1 minute')
+    returning id into v_attempt;
+    insert into public.lec_answers (attempt_id, question_id, selected_option, is_correct)
+    select v_attempt, q.id, 'a', true from public.lec_questions q where q.version_id = v_versions[i];
   end loop;
 
-  -- (a) provisional: no sube
-  insert into t_res values ('a', public.lec_try_level_up(v_student, 'es'));
+  r_a := public.lec_try_level_up(v_student, 'es');
 
-  -- (b) ya con diagnóstico: sube a 3
   update public.lec_student_levels set is_provisional = false
    where student_id = v_student and language = 'es';
-  insert into t_res values ('b', public.lec_try_level_up(v_student, 'es'));
+  r_b := public.lec_try_level_up(v_student, 'es');
+  r_c := public.lec_try_level_up(v_student, 'es');
 
-  -- (c) segunda llamada: ya no sube
-  insert into t_res values ('c', public.lec_try_level_up(v_student, 'es'));
+  r_nivel := (select level from public.lec_student_levels where student_id = v_student and language = 'es');
+  r_auto := (select count(*) from public.lec_level_changes
+             where student_id = v_student and reason = 'auto' and created_at = now());
 
-  insert into t_res values ('nivel_final',
-    (select level from public.lec_student_levels where student_id = v_student and language = 'es'));
-  insert into t_res values ('cambios_auto',
-    (select count(*) from public.lec_level_changes where student_id = v_student and reason = 'auto' and created_at = now()));
+  raise exception 'RESULTADO releer=% a=% b=% c=% nivel_final=% cambios_auto=%',
+    r_releer, coalesce(r_a::text, 'null'), coalesce(r_b::text, 'null'), coalesce(r_c::text, 'null'), r_nivel, r_auto;
 end $$;
-
-select * from t_res;
-
-rollback;
 */
