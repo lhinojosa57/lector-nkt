@@ -55,8 +55,9 @@ export default function ReadingCover({ title, subject, coverPath, size = 'md', c
       {size !== 'sm' && (
         <>
           <span className="relative px-3 pl-4 pt-3 font-body text-[10px] uppercase tracking-wider opacity-90 line-clamp-2">{subject}</span>
-          <span className={`relative px-3 pl-4 pb-3 font-display font-bold leading-tight line-clamp-4 break-words hyphens-auto ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
-            {title}
+          {/* El recorte va en el span interior: si llevara el padding, la 5ª línea se asomaría por él. */}
+          <span className={`relative px-3 pl-4 pb-3 font-display font-bold leading-tight ${size === 'lg' ? 'text-lg' : 'text-base'}`}>
+            <span className="line-clamp-4 break-words hyphens-auto">{title}</span>
           </span>
         </>
       )}
