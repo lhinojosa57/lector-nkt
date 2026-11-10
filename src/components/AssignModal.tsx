@@ -3,6 +3,8 @@ import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { LEVELS, MODES, type ReadingGroup, type ReadingMode } from '@/lib/lec'
+import { fetchReadingPdas, missingGradeWarnings, type Pda, type PdaGrade } from '@/lib/pda'
+import { fetchCurrentCycle } from '@/lib/rosterApi'
 
 interface Props {
   readingId: string
@@ -39,6 +41,43 @@ export default function AssignModal({ readingId, readingTitle, availableLevels, 
         setSelected(s => s.filter(id => gs.some(g => g.id === id)))
       })
   }, [profile?.id])
+
+  // PDA de la lectura (null si todavía no existe la tabla o falla: no se avisa nada).
+  const [readingPdas, setReadingPdasState] = useState<Pda[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchReadingPdas(readingId)
+      .then(p => { if (!cancelled) setReadingPdasState(p) })
+      .catch(err => console.error('No se pudieron leer los PDA de la lectura', err))
+    return () => { cancelled = true }
+  }, [readingId])
+
+  // Grados presentes en los grupos marcados (ciclo actual).
+  const [gradesPresent, setGradesPresent] = useState<PdaGrade[]>([])
+  const selectedKey = [...selected].sort().join(',')
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const ids = selectedKey ? selectedKey.split(',') : []
+      if (ids.length === 0) { if (!cancelled) setGradesPresent([]); return }
+      try {
+        const cycle = await fetchCurrentCycle()
+        const { data: members } = await supabase.from('reading_group_members').select('student_id').in('group_id', ids)
+        const studentIds = [...new Set(((members ?? []) as { student_id: string }[]).map(m => m.student_id))]
+        if (studentIds.length === 0) { if (!cancelled) setGradesPresent([]); return }
+        const { data: enr } = await supabase.from('lec_enrollments').select('grade, status').eq('cycle', cycle.cycle).in('student_id', studentIds)
+        const gs = ((enr ?? []) as { grade: PdaGrade | null; status: string }[])
+          .filter(e => e.status === 'activo' && e.grade !== null).map(e => e.grade as PdaGrade)
+        if (!cancelled) setGradesPresent([...new Set(gs)])
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [selectedKey])
+
+  const pdaWarnings = readingPdas && selected.length > 0 ? missingGradeWarnings(readingPdas, gradesPresent) : []
 
   const toggle = (id: string) =>
     setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
@@ -155,6 +194,10 @@ export default function AssignModal({ readingId, readingTitle, availableLevels, 
               />
             </label>
           </section>
+
+          {pdaWarnings.map(w => (
+            <p key={w} role="status" className="font-body text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-lg px-3 py-2">{w}</p>
+          ))}
 
           {error && <p className="font-body text-sm text-crimson-500">{error}</p>}
         </div>
