@@ -145,7 +145,7 @@ export function summarizeResults(
     avgAccuracy: accs.length ? round1(accs.reduce((s, x) => s + x, 0) / accs.length) : null,
     aloudTotal: aloud.length,
     aloudReviewed: aloud.filter(a => a.wcpm !== null).length,
-    questions: qs.map(({ ratio: _r, ...q }) => q),
+    questions: qs.map(q => ({ id: q.id, n: q.n, text: q.text, skill: q.skill, pctCorrect: q.pctCorrect, answered: q.answered })),
     hints,
     rows,
   }
