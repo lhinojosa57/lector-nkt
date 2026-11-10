@@ -3,39 +3,29 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { recordGroupJoin } from '@/lib/rosterApi'
 import { useAuth } from '@/lib/auth'
-import LevelBadge, { levelMotto } from '@/components/LevelBadge'
-import {
-  DEFAULT_LEVEL, comprehensionLight, formatDate, levelName, modeLabel, type Light,
-  type Language, type LecAssignment, type LecConsent,
-} from '@/lib/lec'
+import LevelBadge from '@/components/LevelBadge'
+import ReadingCover from '@/components/ReadingCover'
+import Shelf from '@/components/Shelf'
+import BookSpine from '@/components/BookSpine'
+import DoneBookDialog from '@/components/DoneBookDialog'
+import LevelPathCard from '@/components/LevelPathCard'
+import LevelUpCelebration from '@/components/LevelUpCelebration'
+import { comprehensionLight, levelName, modeLabel, type LecConsent } from '@/lib/lec'
+import { fetchStudentShelves, type StudentShelves } from '@/lib/studentShelvesApi'
 
-interface AssignmentRow extends LecAssignment {
-  title: string
-  language: Language
-  subject: string
-  completed: boolean
-  comprehension: number | null
-  completedAt: string | null
-  fluency: { wcpm: number; accuracy_pct: number; comment: string | null } | null
-}
-
-const LIGHT_DOT: Record<Light, string> = {
-  green: 'bg-emerald-500',
-  yellow: 'bg-amber-400',
-  red: 'bg-red-500',
-}
+const kpiBox = 'bg-parchment-50 border border-parchment-200 rounded-xl p-3 min-w-0'
+const readBtn = 'mt-2 font-body text-sm px-4 py-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-500'
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
-  const [levels, setLevels] = useState<Record<Language, { level: number; provisional: boolean }>>({
-    es: { level: DEFAULT_LEVEL, provisional: true },
-    en: { level: DEFAULT_LEVEL, provisional: true },
-  })
+  const [loadError, setLoadError] = useState('')
+  const [shelves, setShelves] = useState<StudentShelves | null>(null)
   const [consent, setConsent] = useState<LecConsent | null>(null)
   const [reload, setReload] = useState(0)
+  const [openBook, setOpenBook] = useState<StudentShelves['done'][number] | null>(null)
+  const [levelUpIndex, setLevelUpIndex] = useState(0)
 
   const [showJoin, setShowJoin] = useState(false)
   const [joinCode, setJoinCode] = useState('')
@@ -49,55 +39,22 @@ export default function StudentDashboard() {
     let cancelled = false
 
     async function load() {
-      const [assignRes, attemptsRes, levelsRes, consentRes] = await Promise.all([
-        supabase
-          .from('lec_assignments')
-          .select('*, lec_readings(title, language, subject)')
-          .eq('archived', false)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('lec_attempts')
-          .select('assignment_id, comprehension_pct, completed_at, lec_fluency_reviews(wcpm, accuracy_pct, comment)')
-          .eq('student_id', studentId)
-          .not('assignment_id', 'is', null)
-          .not('completed_at', 'is', null),
-        supabase.from('lec_student_levels').select('language, level, is_provisional').eq('student_id', studentId),
-        supabase.from('lec_consents').select('*').eq('student_id', studentId).maybeSingle(),
-      ])
-      if (cancelled) return
-
-      type Fl = { wcpm: number; accuracy_pct: number; comment: string | null }
-      const done = new Map<string, { pct: number | null; at: string; fluency: Fl | null }>()
-      for (const a of (attemptsRes.data ?? []) as unknown as { assignment_id: string; comprehension_pct: number | null; completed_at: string; lec_fluency_reviews: Fl | Fl[] | null }[]) {
-        const f = Array.isArray(a.lec_fluency_reviews) ? a.lec_fluency_reviews[0] ?? null : a.lec_fluency_reviews
-        done.set(a.assignment_id, { pct: a.comprehension_pct, at: a.completed_at, fluency: f })
+      try {
+        const [sh, consentRes] = await Promise.all([
+          fetchStudentShelves(studentId),
+          supabase.from('lec_consents').select('*').eq('student_id', studentId).maybeSingle(),
+        ])
+        if (cancelled) return
+        setShelves(sh)
+        setLevelUpIndex(0)
+        setConsent((consentRes.data as LecConsent) ?? null)
+        setLoadError('')
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) setLoadError('No pudimos cargar tu biblioteca. Revisa tu conexión y recarga la página.')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-
-      type Raw = LecAssignment & { lec_readings: { title: string; language: Language; subject: string } | null }
-      const rows = ((assignRes.data ?? []) as Raw[])
-        .filter(a => a.lec_readings)
-        .map(a => ({
-          ...a,
-          title: a.lec_readings!.title,
-          language: a.lec_readings!.language,
-          subject: a.lec_readings!.subject,
-          completed: done.has(a.id),
-          comprehension: done.get(a.id)?.pct ?? null,
-          completedAt: done.get(a.id)?.at ?? null,
-          fluency: done.get(a.id)?.fluency ?? null,
-        }))
-        // Pendientes primero, luego por fecha límite
-        .sort((a, b) => Number(a.completed) - Number(b.completed) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
-
-      const lv = { es: { level: DEFAULT_LEVEL, provisional: true }, en: { level: DEFAULT_LEVEL, provisional: true } }
-      for (const l of (levelsRes.data ?? []) as { language: Language; level: number; is_provisional: boolean }[]) {
-        lv[l.language] = { level: l.level, provisional: l.is_provisional }
-      }
-
-      setAssignments(rows)
-      setLevels(lv)
-      setConsent((consentRes.data as LecConsent) ?? null)
-      setLoading(false)
     }
     load()
     return () => { cancelled = true }
@@ -143,13 +100,15 @@ export default function StudentDashboard() {
     )
   }
 
-  const pending = assignments.filter(a => !a.completed)
-  const completed = assignments.filter(a => a.completed)
+  const k = shelves?.kpis
+  const gainLang = shelves?.languages.find(l => shelves.kpis.gain[l])
+  const gain = shelves && gainLang ? shelves.kpis.gain[gainLang] : undefined
+  const levelUp = shelves?.unseenLevelUps[levelUpIndex]
 
   return (
     <div className="min-h-screen bg-sepia-100">
       <div className="bg-parchment-50 border-b border-parchment-200 px-4 sm:px-6 py-4">
-        <div className="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-display text-xl font-bold text-ink-900">LectorNKT</h1>
             <p className="font-body text-xs text-ink-500 mt-0.5">{profile?.full_name ?? profile?.email}</p>
@@ -166,7 +125,7 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
         {notice && (
           <p role="status" className="font-body text-sm bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-4 py-2">{notice}</p>
         )}
@@ -185,108 +144,146 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Niveles */}
-        <div className="grid grid-cols-2 gap-3">
-          {(['es', 'en'] as Language[]).map(lang => (
-            <div key={lang} className="bg-parchment-50 border border-parchment-200 rounded-xl p-4 flex items-center gap-3">
-              <LevelBadge level={levels[lang].level} />
-              <div className="min-w-0">
-                <p className="font-body text-xs text-ink-500">{lang === 'es' ? 'Lectura en español' : 'Lectura en inglés'}</p>
-                <p className="font-display text-lg font-bold text-ink-900 leading-tight">
-                  Nivel {levels[lang].level} · {levelName(levels[lang].level)}
-                </p>
-                <p className="font-body text-xs text-ink-500 italic">{levelMotto(levels[lang].level)}</p>
-                {levels[lang].provisional && (
-                  <p className="font-body text-xs text-ink-400 mt-0.5">Provisional, hasta tu diagnóstico</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        {loadError && <p role="alert" className="font-body text-sm text-crimson-500">{loadError}</p>}
 
-        {/* Mis lecturas */}
-        <section className="bg-parchment-50 border border-parchment-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-parchment-200">
-            <h2 className="font-display font-semibold text-ink-800">Mis lecturas</h2>
-            <p className="font-body text-xs text-ink-500">Las que te asignaron tus docentes</p>
-          </div>
-          {pending.length === 0 ? (
-            <p className="px-5 py-4 font-body text-sm text-ink-500">No tienes lecturas pendientes.</p>
-          ) : (
-            <ul className="divide-y divide-parchment-200">
-              {pending.map(a => (
-                <li key={a.id} className="px-5 py-4 flex flex-wrap items-center gap-3">
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="font-display font-semibold text-ink-900">{a.title}</p>
-                    <p className="font-body text-xs text-ink-500 mt-0.5">
-                      {a.subject} · {modeLabel(a.mode)}{a.due_date ? ` · Entregar antes del ${formatDate(a.due_date)}` : ''}
+        {shelves && k && (
+          <>
+            {/* Encabezado "Mi biblioteca" */}
+            <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
+              <div className="lg:w-56 shrink-0 space-y-2">
+                <h2 className="font-display text-2xl font-bold text-ink-900">Mi biblioteca</h2>
+                {shelves.languages.map(lang => (
+                  <div key={lang} className="flex items-center gap-2">
+                    <LevelBadge level={shelves.levels[lang].level} size="sm" />
+                    <p className="font-body text-sm text-ink-800 leading-tight">
+                      {shelves.languages.length > 1 && <span className="text-ink-500">{lang === 'es' ? 'Español · ' : 'Inglés · '}</span>}
+                      <strong>Nivel {shelves.levels[lang].level} · {levelName(shelves.levels[lang].level)}</strong>
                     </p>
                   </div>
-                  <button
-                    onClick={() => navigate(`/student/read/${a.id}`)}
-                    aria-label={`Leer ${a.title}`}
-                    className="font-body text-sm px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-500"
-                  >
-                    Leer →
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {completed.length > 0 && (
-            <div className="border-t border-parchment-200">
-              <p className="px-5 pt-3 pb-1 font-body text-xs text-ink-500">Completadas</p>
-              <ul className="divide-y divide-parchment-200">
-                {completed.map(a => {
-                  const light = a.comprehension !== null ? comprehensionLight(a.comprehension) : null
-                  return (
-                    <li key={a.id} className="px-5 py-3 flex items-center gap-3">
-                      <span
-                        className={`w-3.5 h-3.5 rounded-full flex-shrink-0 ${light ? LIGHT_DOT[light.light] : 'bg-parchment-300'}`}
-                        aria-hidden
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-body text-sm text-ink-800">{a.title}</p>
-                        <p className="font-body text-xs text-ink-500">
-                          {a.subject} · {modeLabel(a.mode)}{a.completedAt ? ` · ${new Date(a.completedAt).toLocaleDateString('es-MX')}` : ''}
-                          {light ? ` · ${light.label}` : ''}
-                        </p>
-                        {a.mode === 'aloud' && (
-                          <p className="font-body text-xs text-ink-700 mt-0.5">
-                            {a.fluency
-                              ? <>Fluidez: <strong>{Math.round(a.fluency.wcpm)}</strong> palabras correctas por minuto · {a.fluency.accuracy_pct}% de precisión</>
-                              : 'Tu docente todavía no revisa tu grabación.'}
-                          </p>
-                        )}
-                        {a.fluency?.comment && (
-                          <p className="font-body text-xs text-ink-600 italic mt-0.5">Tu docente: “{a.fluency.comment}”</p>
-                        )}
-                      </div>
-                      {a.comprehension !== null && (
-                        <span className="font-mono text-sm font-bold text-ink-700">{Math.round(a.comprehension)}%</span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-              <p className="px-5 py-2 font-body text-[11px] text-ink-400 border-t border-parchment-200">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />75% o más
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-3 mr-1" />50 a 74%
-                <span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-3 mr-1" />menos de 50%
-              </p>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 min-w-0">
+                <div className={kpiBox}>
+                  <p className="font-display text-2xl font-bold text-ink-900">{k.readCount.toLocaleString('es-MX')}</p>
+                  <p className="font-body text-xs text-ink-600">{k.readCount === 1 ? 'lectura leída' : 'lecturas leídas'}</p>
+                  <p className="font-body text-xs text-ink-500 mt-1">
+                    📖 {k.words.toLocaleString('es-MX')} palabras ≈ {k.pages.toLocaleString('es-MX')} {k.pages === 1 ? 'página' : 'páginas'}
+                  </p>
+                </div>
+                <div className={kpiBox}>
+                  {gain && gain.delta > 0 ? (
+                    <>
+                      <p className="font-display text-2xl font-bold text-teal-700">
+                        +{gain.delta} <span className="text-sm font-body text-ink-500">ppm</span>
+                      </p>
+                      <p className="font-body text-xs text-ink-600">desde tu primera lectura en voz alta ({gain.first} → {gain.last})</p>
+                    </>
+                  ) : gain ? (
+                    <p className="font-body text-sm text-ink-700">Tu última lectura: <strong>{gain.last}</strong> ppm</p>
+                  ) : (
+                    <p className="font-body text-sm text-ink-600">Lee en voz alta para ver tu avance</p>
+                  )}
+                </div>
+                <div className="space-y-2 min-w-0">
+                  {shelves.languages.map(lang => (
+                    <LevelPathCard key={lang} language={lang} progress={shelves.progress[lang] ?? null} />
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </section>
 
-        {/* Entrenamiento libre */}
-        <button
-          onClick={() => navigate('/student/library')}
-          className="w-full text-left bg-parchment-50 border border-parchment-200 rounded-xl p-5 hover:bg-parchment-100 transition-colors"
-        >
-          <p className="font-display font-semibold text-ink-800">Entrenamiento libre →</p>
-          <p className="font-body text-sm text-ink-500 mt-1">Elige una lectura de tu nivel sobre el tema que quieras.</p>
-        </button>
+            {/* Estante 1: asignadas */}
+            <Shelf
+              title="📌 Lecturas asignadas"
+              subtitle="Las que tus docentes te pidieron · la más reciente primero"
+              badge={shelves.pending.length > 0 && (
+                <span className="font-body text-xs bg-amber-700 text-white rounded-full px-2.5 py-0.5">
+                  {shelves.pending.length} por leer
+                </span>
+              )}
+              empty="No tienes lecturas asignadas pendientes. 🎉"
+            >
+              {shelves.pending.map(b => (
+                <div key={b.assignmentId} className="shrink-0 w-[140px] pb-3">
+                  <ReadingCover title={b.title} subject={b.subject} coverPath={b.coverPath} size="md" />
+                  <p className="font-display text-sm font-semibold text-ink-900 mt-2 leading-tight line-clamp-2 break-words">{b.title}</p>
+                  <p className="font-body text-xs text-ink-500">{b.subject} · {modeLabel(b.mode)}</p>
+                  <p className={`font-body text-xs ${b.overdue ? 'text-amber-800 font-semibold' : 'text-ink-500'}`}>
+                    {b.dueLabel}{b.overdue ? ' · vencida' : ''}
+                  </p>
+                  <button onClick={() => navigate(`/student/read/${b.assignmentId}`)} aria-label={`Leer ${b.title}`} className={readBtn}>
+                    Leer
+                  </button>
+                </div>
+              ))}
+            </Shelf>
+
+            {/* Estante 2: entrenamiento libre */}
+            <Shelf
+              title="🌱 Entrenamiento libre"
+              subtitle="Tres sugerencias de tu nivel para hoy"
+              empty="Ya leíste todas las lecturas de tu nivel. ¡Pronto habrá más!"
+              footer={
+                <button onClick={() => navigate('/student/library')} className="font-body text-sm text-teal-700 hover:underline">
+                  Ver toda la biblioteca →
+                </button>
+              }
+            >
+              {shelves.suggestions.map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => navigate(`/student/practice/${r.id}`)}
+                  aria-label={`Leer ${r.title}, ${r.subject}${r.levelShown ? `, nivel ${r.levelShown}` : ''}`}
+                  className="shrink-0 w-[140px] pb-3 text-left rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600"
+                >
+                  <ReadingCover title={r.title} subject={r.subject} coverPath={r.coverPath} size="md" />
+                  <p className="font-display text-sm font-semibold text-ink-900 mt-2 leading-tight line-clamp-2 break-words">{r.title}</p>
+                  <p className="font-body text-xs text-ink-500">{r.subject}{r.levelShown ? ` · Nivel ${r.levelShown}` : ''}</p>
+                </button>
+              ))}
+            </Shelf>
+
+            {/* Estante 3: realizadas */}
+            <Shelf
+              title="📚 Lecturas realizadas"
+              subtitle="Toca un libro para ver cómo te fue"
+              empty="Aquí se irán acomodando los libros que termines."
+              footer={shelves.done.length > 0 && (
+                <p className="font-body text-[11px] text-ink-400">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />75% o más
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-3 mr-1" />50 a 74%
+                  <span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-3 mr-1" />menos de 50%
+                </p>
+              )}
+            >
+              {shelves.done.map(b => (
+                <BookSpine
+                  key={b.readingId}
+                  title={b.reading.title}
+                  subject={b.reading.subject}
+                  words={b.latest.words}
+                  pct={b.latest.comprehension}
+                  light={b.latest.comprehension !== null ? comprehensionLight(b.latest.comprehension).light : null}
+                  onClick={() => setOpenBook(b)}
+                />
+              ))}
+            </Shelf>
+          </>
+        )}
       </div>
+
+      {openBook && (
+        <DoneBookDialog
+          book={openBook}
+          onClose={() => setOpenBook(null)}
+          onReadAgain={() => navigate(`/student/practice/${openBook.readingId}`)}
+        />
+      )}
+
+      {levelUp && !openBook && !showJoin && (
+        <LevelUpCelebration change={levelUp} onClose={() => setLevelUpIndex(i => i + 1)} />
+      )}
 
       {showJoin && (
         <div
